@@ -1252,7 +1252,7 @@ class ImportDuplicateAlbumTest(unittest.TestCase, TestHelper,
         # Create import session
         self.importer = self.create_importer()
         config['import']['autotag'] = True
-        config['import']['duplicate_keys'] = 'albumartist album'
+        config['import']['duplicate_keys']['album'] = 'albumartist album'
 
     def tearDown(self):
         self.teardown_beets()
@@ -1323,7 +1323,7 @@ class ImportDuplicateAlbumTest(unittest.TestCase, TestHelper,
         self.skipTest('write me')
 
     def test_keep_when_extra_key_is_different(self):
-        config['import']['duplicate_keys'] = 'albumartist album flex'
+        config['import']['duplicate_keys']['album'] = 'albumartist album flex'
 
         item = self.lib.items().get()
         import_file = MediaFile(os.path.join(
@@ -1369,6 +1369,7 @@ class ImportDuplicateSingletonTest(unittest.TestCase, TestHelper,
         self.importer = self.create_importer()
         config['import']['autotag'] = True
         config['import']['singletons'] = True
+        config['import']['duplicate_keys']['single'] = 'artist title'
 
     def tearDown(self):
         self.teardown_beets()
@@ -1404,6 +1405,18 @@ class ImportDuplicateSingletonTest(unittest.TestCase, TestHelper,
         self.assertEqual(len(self.lib.items()), 1)
         item = self.lib.items().get()
         self.assertEqual(item.mb_trackid, 'old trackid')
+
+    def test_keep_when_extra_key_is_different(self):
+        config['import']['duplicate_keys']['single'] = 'artist title flex'
+        item = self.lib.items().get()
+        item.flex = 'different'
+        item.store()
+        self.assertEqual(len(self.lib.items()), 1)
+
+        self.importer.default_resolution = self.importer.Resolution.SKIP
+        self.importer.run()
+
+        self.assertEqual(len(self.lib.items()), 2)
 
     def test_twice_in_import_dir(self):
         self.skipTest('write me')
