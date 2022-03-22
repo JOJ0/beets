@@ -192,5 +192,5 @@ only files which would be processed'
                 '{message}).', item=item, message=message
             )
         else:
-            self._log.debug('Successfully submitted AcousticBrainz analysis '
-                            'for {}.', item)
+            self._log.info('Successfully submitted AcousticBrainz analysis '
+                           'for {}.', item)
