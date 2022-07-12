@@ -1150,6 +1150,9 @@ class Album(LibModel):
     def items(self):
         """Return an iterable over the items associated with this
         album.
+
+        This method predates the :meth:`LibModel.items` method inherited
+        from :meth:`beets.dbcore.Model.items`.
         """
         return self._db.items(dbcore.MatchQuery('album_id', self.id))
 
