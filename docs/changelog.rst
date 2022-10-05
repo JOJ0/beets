@@ -47,6 +47,9 @@ New features:
   :bug:`4438`
 * Add a new ``import.ignored_alias_types`` config option to allow for
   specific alias types to be skipped over when importing items/albums.
+* :doc:`/plugins/convert`: Add support for generating m3u8 playlists together
+  with converted media files.
+  :bug:`4373`
 
 Bug fixes:
 
