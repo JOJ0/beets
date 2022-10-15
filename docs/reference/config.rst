@@ -695,7 +695,7 @@ duplicate_keys
 ~~~~~~~~~~~~~~
 
 The fields used to find duplicates in import task.
-If several items have the same value for each key, they will be considered duplicates.
+If several albums have the same value for each key, they will be considered duplicates.
 
 Default: ``albumartist album``
 
