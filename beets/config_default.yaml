@@ -34,6 +34,7 @@ import:
     bell: no
     set_fields: {}
     autotag_exclude_fields: []
+    ignored_alias_types: []
 
 clutter: ["Thumbs.DB", ".DS_Store"]
 ignore: [".*", "*~", "System Volume Information", "lost+found"]
