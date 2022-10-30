@@ -33,7 +33,6 @@ import:
     duplicate_action: ask
     bell: no
     set_fields: {}
-    autotag_exclude_fields: []
     ignored_alias_types: []
 
 clutter: ["Thumbs.DB", ".DS_Store"]
@@ -119,6 +118,13 @@ musicbrainz:
     searchlimit: 5
     extra_tags: []
     genres: no
+    external_ids:
+        discogs: no
+        spotify: no
+        bandcamp: no
+        beatport: no
+        deezer: no
+    external_ids_overwrite: no
 
 match:
     strong_rec_thresh: 0.04
