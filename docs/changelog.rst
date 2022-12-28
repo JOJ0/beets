@@ -8,6 +8,8 @@ Changelog goes here!
 
 New features:
 
+* We now import the remixer field from Musicbrainz into the library.
+  :bug:`4428`
 * :doc:`/plugins/mbsubmit`: Added a new `mbsubmit` command to print track information to be submitted to MusicBrainz after initial import.
   :bug:`4455`
 * Added `spotify_updated` field to track when the information was last updated.
@@ -47,25 +49,9 @@ New features:
   :bug:`4438`
 * Add a new ``import.ignored_alias_types`` config option to allow for
   specific alias types to be skipped over when importing items/albums.
-<<<<<<< HEAD
-* :doc:`/plugins/convert`: Add support for generating m3u8 playlists together
-  with converted media files.
-  :bug:`4373`
-=======
-* :ref:`musicbrainz-config`: MusicBrainz release pages often link to
-  related metadata sources like Discogs, Spotify, Bandcamp, Beatport and
-  Deezer. When enabled via the :ref:`musicbrainz.external_ids` options, release
-  ID's will be extracted from those URL's and imported to the library.
-  :bug:`4220`
->>>>>>> mb_fetch_discogs_url
 
 Bug fixes:
 
-* :doc:`/plugins/discogs`: Fix "Discogs plugin replacing Feat. or Ft. with
-  a comma" by fixing an oversight that removed a functionality from the code
-  base when the MetadataSourcePlugin abstract class was introduced in PR's
-  #3335 and #3371.
-  :bug:`4401`
 * :doc:`/plugins/convert`: Set default ``max_bitrate`` value to ``None`` to 
   avoid transcoding when this parameter is not set. :bug:`4472`
 * :doc:`/plugins/replaygain`: Avoid a crash when errors occur in the analysis
@@ -133,6 +119,9 @@ Bug fixes:
 * :doc:`/plugins/lastgenre`: Fix a duplicated entry for trip hop in the
   default genre list.
   :bug:`4510`
+* :doc:`plugins/lyrics`: Fixed issue with Tekstowo backend not actually checking
+  if the found song matches.
+  :bug:`4406`
 
 For packagers:
 
