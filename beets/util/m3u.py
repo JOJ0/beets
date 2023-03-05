@@ -14,8 +14,9 @@
 
 """Provides utilities to read, write and manipulate m3u playlist files."""
 
+import traceback
 
-from beets.util import syspath, normpath, mkdirall
+from beets.util import syspath, normpath, mkdirall, FilesystemError
 
 
 class EmptyPlaylistError(Exception):
@@ -76,6 +77,10 @@ class M3UFile():
         pl_normpath = normpath(self.path)
         mkdirall(pl_normpath)
 
-        with open(syspath(pl_normpath), "w", encoding="utf-8") as playlist_file:
-            playlist_file.writelines('\n'.join(contents))
-            playlist_file.write('\n')  # Final linefeed to prevent noeol file.
+        try:
+            with open(syspath(pl_normpath), "w", encoding="utf-8") as pl_file:
+                pl_file.writelines('\n'.join(contents))
+                pl_file.write('\n')  # Final linefeed to prevent noeol file.
+        except OSError as exc:
+            raise FilesystemError(exc, 'create', (pl_normpath, ),
+                                  traceback.format_exc())
