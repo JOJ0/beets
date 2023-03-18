@@ -212,6 +212,12 @@ def disambig_string(info):
         if info.albumdisambig:
             disambig.append(info.albumdisambig)
 
+    if isinstance(info, hooks.TrackInfo):
+        if info.index:
+            disambig.append("Index {}".format(str(info.index)))
+        if info.track_alt:
+            disambig.append("Track {} ".format(info.track_alt))
+
     if disambig:
         return ', '.join(disambig)
 
