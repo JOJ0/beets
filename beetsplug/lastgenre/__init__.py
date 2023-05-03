@@ -243,10 +243,14 @@ class LastGenrePlugin(plugins.BeetsPlugin):
         """Determine whether the genre is present in the whitelist,
         returning a boolean.
         """
+        print("LastGenrePlugin._is_allowed got genre")
+        print(genre)
         if genre is None:
             return False
         if not self.whitelist or genre.lower() in self.whitelist:
+            print("and decided it's allowed.\n")
             return True
+        print("and decided it's NOT allowed.\n")
         return False
 
     # Cached entity lookups.
