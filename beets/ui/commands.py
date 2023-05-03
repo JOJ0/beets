@@ -1547,6 +1547,7 @@ def print_and_modify(obj, mods, dels):
     `mods` is a dictionary of fields and values to update on the object;
     `dels` is a sequence of fields to delete.
     """
+    # print("In print_and_modify mods is", mods)
     obj.update(mods)
     for field in dels:
         try:

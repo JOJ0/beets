@@ -1380,16 +1380,20 @@ class Album(LibModel):
         for key in self._dirty:
             if key in self.item_keys:
                 track_updates[key] = self[key]
+                print("Adding fixed attr to track_updates:", key)
             elif key not in self:
                 track_deletes.add(key)
+                print("Adding flexible/fixed attr to track_deletes:", key)
             else:  # Must be a flex attr
                 track_updates[key] = self[key]
+                print("Adding flexible attr to track_updates:", key)
 
         with self._db.transaction():
             super().store(fields)
             if track_updates:
                 for item in self.items():
                     for key, value in track_updates.items():
+                        print("Setting {} to {}".format(key, value))
                         item[key] = value
                     item.store()
             if track_deletes:
