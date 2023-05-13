@@ -508,6 +508,8 @@ class Model:
         if fields is None:
             fields = self._fields
         self._check_db()
+        print()
+        print("In model.store")
 
         # Build assignments for query.
         assignments = []
@@ -531,14 +533,28 @@ class Model:
 
             # Modified/added flexible attributes.
             for key, value in self._values_flex.items():
+                if key == 'data_source':
+                    print('flex attr data_source found in loop, value is:')
+                    print(value)
                 if key in self._dirty:
                     self._dirty.remove(key)
-                    tx.mutate(
+                    print("Key is dirty:", key)
+                    print("Value is:", value)
+                    print("self.id (album/item) is:", self.id)
+                    print("Transaction executing:")
+                    print(tx.mutate(
                         'INSERT INTO {} '
                         '(entity_id, key, value) '
                         'VALUES (?, ?, ?);'.format(self._flex_table),
                         (self.id, key, value),
-                    )
+                    ))
+                    print()
+                    if key == 'data_source':
+                        print(
+                            'Right after tx.mutate statement. The flex attr was '
+                            'data_source. The first time setting an attr '
+                            'named like this must have been the album object.'
+                        )
 
             # Deleted flexible attributes.
             for key in self._dirty:

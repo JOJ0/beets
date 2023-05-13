@@ -788,7 +788,12 @@ class ImportTask(BaseImportTask):
             self.remove_replaced(lib)
             self.album = lib.add_album(self.imported_items())
             if 'data_source' in self.imported_items()[0]:
+                print("")
+                print("data_source was found on first item of album!")
+                print("")
                 self.album.data_source = self.imported_items()[0].data_source
+                print("data_source set on album:")
+                print(self.album.data_source)
             self.reimport_metadata(lib)
 
     def record_replaced(self, lib):
@@ -840,6 +845,10 @@ class ImportTask(BaseImportTask):
 
         if self.is_album:
             replaced_album = self.replaced_albums.get(self.album.path)
+            print()
+            print("This is replaced album:")
+            print(replaced_album)
+            print()
             if replaced_album:
                 album_fields = _reduce_and_log(self.album,
                                                replaced_album._values_flex,
