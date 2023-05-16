@@ -20,10 +20,15 @@ one wants to manually add music to a player by its path.
 import datetime
 import os
 import re
+# from pathlib import Path
 
 from beets.plugins import BeetsPlugin
 from beets.util import mkdirall, normpath, syspath, bytestring_path, link
 from beets import config
+
+# from beets.autotag.match import Recommendation
+from beets.ui.commands import PromptChoice
+from beets.importer import action
 
 M3U_DEFAULT_NAME = 'imported.m3u'
 
@@ -70,6 +75,9 @@ class ImportFeedsPlugin(BeetsPlugin):
 
         self.register_listener('album_imported', self.album_imported)
         self.register_listener('item_imported', self.item_imported)
+        self.register_listener('import_task_choice', self.import_task_choice)
+        self.register_listener('before_choose_candidate',
+                               self.before_choose_candidate)
 
     def get_feeds_dir(self):
         feeds_dir = self.config['dir'].get()
@@ -120,8 +128,51 @@ class ImportFeedsPlugin(BeetsPlugin):
             for path in paths:
                 self._log.info("  {0}", path)
 
+    def add_to_skipped_list(self, session, task):
+        for path in task.paths:
+            print("FIXME now add to skipped_list and return action.SKIP")
+            #print(dir(task))
+            #print()
+            print(path)
+            for item in task.items:
+                print(item.path)
+            print()
+            #print(dir(session))
+            #print()
+            #print(session.resolve_duplicate(task, session))
+            print()
+        return action.SKIP
+
     def album_imported(self, lib, album):
         self._record_items(lib, album.album, album.items())
 
     def item_imported(self, lib, item):
         self._record_items(lib, item.title, [item])
+
+    def import_task_choice(self, task, session):
+        print()
+        print("import_task_choice event received.")
+        print("task:")
+        print(dir(task))
+        for item in task.items:
+            print("This is a new item:")
+            print(item.artist)
+            print(item.title)
+            print()
+        for dup in task.duplicate_items(session.lib):
+            print("This is a duplicate:")
+            print(dup)
+        print()
+        print("session:")
+        print(dir(session))
+        print()
+
+    def before_choose_candidate(self, session, task):
+        #if task.rec == Recommendation.strong:
+        #    self._log.info("recommendation is strong, not notifying")
+        #    return
+        return [PromptChoice(
+            'l',
+            'add to List and skip',
+            self.add_to_skipped_list
+        )]

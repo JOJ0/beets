@@ -526,6 +526,8 @@ def link(path, dest, replace=False):
     if os.path.exists(syspath(dest)) and not replace:
         raise FilesystemError('file exists', 'rename', (path, dest))
     try:
+        print("link path/dest:")
+        print(syspath(path), syspath(dest))
         os.symlink(syspath(path), syspath(dest))
     except NotImplementedError:
         # raised on python >= 3.2 and Windows versions before Vista
