@@ -98,6 +98,8 @@ class LastGenrePlugin(plugins.BeetsPlugin):
 
         self.config.add({
             'whitelist': True,
+            'alias': None,
+            'regex': None,
             'min_weight': 10,
             'count': 1,
             'fallback': None,
@@ -153,6 +155,26 @@ class LastGenrePlugin(plugins.BeetsPlugin):
                 genres_tree = yaml.safe_load(f)
             flatten_tree(genres_tree, [], self.c14n_branches)
 
+        self.aliases = set()
+        alias_filename = self.config['alias'].get()
+        if alias_filename:
+            alias_filename = normpath(alias_filename)
+            with open(alias_filename, 'rb') as f:
+                for line in f:
+                    line = line.decode('utf-8').strip().lower()
+                    if line and not line.startswith('#'):
+                        self.aliases.add(line)
+
+        self.regexes = set()
+        regex_filename = self.config['regex'].get()
+        if regex_filename:
+            regex_filename = normpath(regex_filename)
+            with open(regex_filename, 'rb') as f:
+                for line in f:
+                    line = line.decode('utf-8').strip().lower()
+                    if line and not line.startswith('#'):
+                        self.regexes.add(line)
+
     @property
     def sources(self):
         """A tuple of allowed genre sources. May contain 'track',
@@ -184,6 +206,36 @@ class LastGenrePlugin(plugins.BeetsPlugin):
         depth_tag_pairs = [e for e in depth_tag_pairs if e[0] is not None]
         depth_tag_pairs.sort(reverse=True)
         return [p[1] for p in depth_tag_pairs]
+
+    def _normalize_genre(self, key):
+        """Try to resolve a tag to a valid whitelisted tag by using
+        aliases, regex replacements and optional difflib matching.
+        """
+
+        def alias(key):
+            """Return whether a key got an alias and log it if True."""
+            if key in self.aliases:
+                self._log.debug('tag alias   %s -> %s', key,
+                                self.aliases[key])
+                return True
+            return False
+
+        # alias
+        if alias(key):
+            return self.aliases[key]
+        # regex
+        if any(r[0].search(key) for r in self.regexes):
+            for pat, repl in self.regexes:
+                if pat.search(key):
+                    key_ = key
+                    key = pat.sub(repl, key)
+                    self._log.debug('tag replace %s -> %s (%s)',
+                                    key_, key, pat.pattern)
+            # key got replaced, try alias again
+            if alias(key):
+                return self.aliases[key]
+            return key
+        return key
 
     def _resolve_genres(self, tags):
         """Given a list of strings, return a genre by joining them into a
@@ -240,12 +292,14 @@ class LastGenrePlugin(plugins.BeetsPlugin):
         return self._resolve_genres(self._tags_for(lastfm_obj, min_weight))
 
     def _is_allowed(self, genre):
-        """Determine whether the genre is present in the whitelist,
-        returning a boolean.
+        """Determine whether the genre is present in the whitelist directly or
+        nomalized, returning a boolean.
         """
         if genre is None:
             return False
         if not self.whitelist or genre.lower() in self.whitelist:
+            return True
+        elif self._normalize_genre(genre) in self.whitelist:
             return True
         return False
 
@@ -328,7 +382,7 @@ class LastGenrePlugin(plugins.BeetsPlugin):
             for g in genres:
                 allowed = self._is_allowed(g)
                 if allowed:
-                    keep_allowed.append(g)
+                    keep_allowed.append(self._format_tag(g))
             if keep_allowed:
                 return ', '.join(keep_allowed), 'keep'
 
