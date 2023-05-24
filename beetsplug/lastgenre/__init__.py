@@ -22,7 +22,10 @@ The scraper script used is available here:
 https://gist.github.com/1241307
 """
 import codecs
+import logging
 import os
+import pkgutil
+import re
 import traceback
 
 import pylast
@@ -153,25 +156,9 @@ class LastGenrePlugin(plugins.BeetsPlugin):
                 genres_tree = yaml.safe_load(f)
             flatten_tree(genres_tree, [], self.c14n_branches)
 
-        self.aliases = set()
-        alias_filename = self.config["alias"].get()
-        if alias_filename:
-            alias_filename = normpath(alias_filename)
-            with open(alias_filename, "rb") as f:
-                for line in f:
-                    line = line.decode("utf-8").strip().lower()
-                    if line and not line.startswith("#"):
-                        self.aliases.add(line)
-
-        self.regexes = set()
-        regex_filename = self.config["regex"].get()
-        if regex_filename:
-            regex_filename = normpath(regex_filename)
-            with open(regex_filename, "rb") as f:
-                for line in f:
-                    line = line.decode("utf-8").strip().lower()
-                    if line and not line.startswith("#"):
-                        self.regexes.add(line)
+        self.tags = self.read_tagsfile()
+        self.aliases = self.tags["alias"]
+        self.regexes = self.tags["regex"]
 
     @property
     def sources(self):
@@ -185,6 +172,57 @@ class LastGenrePlugin(plugins.BeetsPlugin):
             return "album", "artist"
         elif source == "artist":
             return ("artist",)
+
+    def read_tagsfile(self, path=None):
+        """Read the tagsfile trying different paths.
+
+        Return a dict of prepared data from the tagsfile.
+        """
+        if not path:
+            # if self.config.has_option('lastgenre', 'tagsfile') \
+            #         and self.config.get('lastgenre', 'tagsfile'):
+            #     path = self.config.get('lastgenre', 'tagsfile')
+            # elif os.path.exists(os.path.join(self.config.path, 'tags.txt')):
+            #     path = os.path.join(self.config.path, 'tags.txt')
+            # else:
+            #     path = 'data/tags.txt'
+            path = self.config["tags"].as_path()
+        tagsfile = {}
+        section = None
+        for line in read_datafile(path):
+            line = str(line.strip().lower())
+            if line.startswith("[") and line.endswith("]"):
+                section = line[1:-1]
+                tagsfile[section] = []
+            elif line and not line.startswith("#") and section:
+                if " = " in line:
+                    line = tuple(line.split(" = ", 2))
+                tagsfile[section].append(line)
+        if any(s not in tagsfile.keys() for s in ["upper", "alias", "regex"]):
+            raise RuntimeError("missing section in tagsfile: %s" % path)
+        for key, val in tagsfile["alias"]:
+            if val not in self.whitelist:
+                # self.stat_message(logging.WARN, 'alias not whitelisted',
+                #                  '%s -> %s' % (key, val), 2)
+                self._log.warning(
+                    "alias not whitelisted: " "{} -> {}", key, val
+                )
+        regex = []
+        for pat, repl in [
+            (r"( *[,;.:\\/&_]+ *| and )+", "/"),
+            (r'[\'"]+', ""),
+            (r"  +", " "),
+        ]:
+            regex.append((re.compile(pat, re.I), repl))
+        for pat, repl in tagsfile["regex"]:
+            regex.append((re.compile(r"\b%s\b" % pat, re.I), repl))
+        tagsfile["regex"] = regex
+        self._log.debug(
+            "tagsfile:  %s (%d items)",
+            path,
+            sum(len(v) for v in tagsfile.values()),
+        )
+        return tagsfile
 
     def _get_depth(self, tag):
         """Find the depth of a tag in the genres tree."""
@@ -211,9 +249,14 @@ class LastGenrePlugin(plugins.BeetsPlugin):
 
         def alias(key):
             """Return whether a key got an alias and log it if True."""
-            if key in self.aliases:
-                self._log.debug("tag alias   %s -> %s", key, self.aliases[key])
+            print("EXP: Check alias:", key.lower())
+            if key.lower() in self.aliases:
+                self._log.warning(
+                    "tag alias   %s -> %s", key, self.aliases[key]
+                )
                 return True
+
+            print("EXP: No alias found")
             return False
 
         # alias
@@ -564,3 +607,14 @@ class LastGenrePlugin(plugins.BeetsPlugin):
         res = [el.item.get_name().lower() for el in res]
 
         return res
+
+
+def read_datafile(path):
+    """Read a file that might be package data."""
+    # FIXME what is that magic?
+    # if path.startswith('data/'):
+    #    lines = pkgutil.get_data('wlg', path).decode().splitlines()
+    # else:
+    with open(path, "r") as file_:
+        lines = file_.read().splitlines()
+    return [l.strip().lower() for l in lines if l.strip()]
