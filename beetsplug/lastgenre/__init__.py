@@ -158,7 +158,7 @@ class LastGenrePlugin(plugins.BeetsPlugin):
             flatten_tree(genres_tree, [], self.c14n_branches)
 
         self.tags = self.read_tagsfile()
-        self.aliases = self.tags['alias']
+        self.aliases = dict(self.tags['alias'])
         self.regexes = self.tags['regex']
 
     @property
@@ -245,14 +245,14 @@ class LastGenrePlugin(plugins.BeetsPlugin):
 
         def alias(key):
             """Return whether a key got an alias and log it if True."""
-            print("EXP: Check alias:", key.lower())
-            if key.lower() in self.aliases:
+            if key in self.aliases:
                 self._log.warning('tag alias   {} -> {}', key,
                                   self.aliases[key])
                 return True
-
-            print("EXP: No alias found")
             return False
+
+        # Lower case genre, all subsequent checks require it.
+        key = key.lower()
 
         # alias
         if alias(key):
