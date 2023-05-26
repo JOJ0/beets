@@ -416,7 +416,9 @@ class LastGenrePlugin(plugins.BeetsPlugin):
             for g in genres:
                 allowed = self._is_allowed(g)
                 if allowed:
-                    keep_allowed.append(self._format_tag(g))
+                    keep_allowed.append(
+                        self._format_tag(self._normalize_genre(g))
+                    )
             if keep_allowed:
                 return ', '.join(keep_allowed), 'keep'
 
