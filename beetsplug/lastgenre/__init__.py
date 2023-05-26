@@ -252,7 +252,7 @@ class LastGenrePlugin(plugins.BeetsPlugin):
             print("EXP: Check alias:", key.lower())
             if key.lower() in self.aliases:
                 self._log.warning(
-                    "tag alias   %s -> %s", key, self.aliases[key]
+                    "tag alias   {} -> {}", key, self.aliases[key]
                 )
                 return True
 
@@ -269,7 +269,7 @@ class LastGenrePlugin(plugins.BeetsPlugin):
                     key_ = key
                     key = pat.sub(repl, key)
                     self._log.debug(
-                        "tag replace %s -> %s (%s)", key_, key, pat.pattern
+                        "tag replace {} -> {} ({})", key_, key, pat.pattern
                     )
             # key got replaced, try alias again
             if alias(key):
