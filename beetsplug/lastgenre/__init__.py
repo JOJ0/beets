@@ -420,6 +420,7 @@ class LastGenrePlugin(plugins.BeetsPlugin):
                         self._format_tag(self._normalize_genre(g))
                     )
             if keep_allowed:
+                keep_allowed = set(keep_allowed)
                 return ', '.join(keep_allowed), 'keep'
 
         # Track genre (for Items only).
