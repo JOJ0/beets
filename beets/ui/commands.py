@@ -1106,7 +1106,7 @@ class TerminalImportSession(importer.ImportSession):
 
         if config['import']['quiet']:
             # In quiet mode, don't prompt -- just skip.
-            log.info('Skipping.')
+            log.info('Skipping (duplicate).')
             sel = 's'
         else:
             # Print some detail about the existing and new items so the
@@ -1119,7 +1119,9 @@ class TerminalImportSession(importer.ImportSession):
                 if config['import']['duplicate_verbose_prompt']:
                     if task.is_album:
                         for dup in duplicate.items():
+                            dup_path = displayable_path(dup.path)
                             print(f"  {dup}")
+                            print(f"  {dup_path}")
                     else:
                         print(f"  {duplicate}")
 
@@ -1129,10 +1131,12 @@ class TerminalImportSession(importer.ImportSession):
             ))
             if config['import']['duplicate_verbose_prompt']:
                 for item in task.imported_items():
+                    item_path = displayable_path(item.path)
                     print(f"  {item}")
+                    print(f"  {item_path}")
 
             sel = ui.input_options(
-                ('Skip new', 'Keep all', 'Remove old', 'Merge all')
+                ('Skip new', 'Keep all', 'Remove old', 'Merge all', 'Purge new')
             )
 
         if sel == 's':
@@ -1146,6 +1150,16 @@ class TerminalImportSession(importer.ImportSession):
             task.should_remove_duplicates = True
         elif sel == 'm':
             task.should_merge_duplicates = True
+        elif sel == 'p':
+            # Remove new.
+            task.should_remove_new = True
+            #print(dir(task))
+            for item in task.imported_items():
+                answ = ui.input_yn(
+                    "Really delete source file? This can't be undone! (Y/n)")
+                if answ:
+                    util.remove(item.path)
+            task.set_choice(importer.action.SKIP)
         else:
             assert False
 
