@@ -1177,7 +1177,9 @@ class TerminalImportSession(importer.ImportSession):
                 if config["import"]["duplicate_verbose_prompt"]:
                     if task.is_album:
                         for dup in duplicate.items():
+                            dup_path = displayable_path(dup.path)
                             print(f"  {dup}")
+                            print(f"  {dup_path}")
                     else:
                         print(f"  {duplicate}")
 
@@ -1190,10 +1192,12 @@ class TerminalImportSession(importer.ImportSession):
             )
             if config["import"]["duplicate_verbose_prompt"]:
                 for item in task.imported_items():
+                    item_path = displayable_path(item.path)
                     print(f"  {item}")
+                    print(f"  {item_path}")
 
             sel = ui.input_options(
-                ("Skip new", "Keep all", "Remove old", "Merge all")
+                ("Skip new", "Keep all", "Remove old", "Merge all", "Purge new")
             )
 
         if sel == "s":
@@ -1207,6 +1211,28 @@ class TerminalImportSession(importer.ImportSession):
             task.should_remove_duplicates = True
         elif sel == "m":
             task.should_merge_duplicates = True
+        elif sel == "p":
+            # Purge new
+            task.should_remove_new = True
+            for item in task.imported_items():
+                lib_items = self.lib.items(library.PathQuery("path", item.path))
+                if len(lib_items) >= 1:
+                    q = "Really delete from library and purge file? (Y/n)"
+                    for lib_item in lib_items:
+                        print(displayable_path(lib_item.path))
+                        if ui.input_yn(q):
+                            lib_item.remove(delete=True)
+                else:
+                    print(displayable_path(item.path))
+                    q = "Really purge source file? (Y/n)"
+                    if ui.input_yn(q):
+                        util.remove(item.path)
+
+            sel_after_purge = ui.input_options(("Skip new", "Merge all"))
+            if sel_after_purge == "s":
+                task.set_choice(importer.action.SKIP)
+            elif sel_after_purge == "m":
+                task.should_merge_duplicates = True
         else:
             assert False
 
