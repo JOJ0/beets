@@ -1503,6 +1503,12 @@ def user_query(session, task):
         # Duplicates would be reimported so make them look "fresh"
         _freshen_items(duplicate_items)
         duplicate_paths = [item.path for item in duplicate_items]
+        duplicate_track_numbers = [item.track for item in duplicate_items]
+        new_track_numbers = [item.track for item in task.items]
+
+        print('The items to be imported:\n', new_track_numbers)
+        print('The duplicate items already in the library:\n',
+              duplicate_track_numbers)
 
         # Record merged paths in the session so they are not reimported
         session.mark_merged(duplicate_paths)
