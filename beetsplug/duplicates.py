@@ -215,8 +215,14 @@ class DuplicatesPlugin(BeetsPlugin):
         return [self._command]
 
     def _process_item(
-        self, item, copy=False, move=False, delete=False, tag=False, fmt="",
-        remove=False
+        self,
+        item,
+        copy=False,
+        move=False,
+        delete=False,
+        tag=False,
+        fmt="",
+        remove=False,
     ):
         """Process Item `item`."""
         print_(format(item, fmt))
