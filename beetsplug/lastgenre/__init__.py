@@ -416,15 +416,11 @@ class LastGenrePlugin(plugins.BeetsPlugin):
                 genres = obj.get("genre", with_album=False).split(", ")
             else:
                 genres = obj.get("genre").split(", ")
-            keep_allowed = []
-            for g in genres:
-                allowed = self._is_allowed(g)
-                if allowed:
-                    keep_allowed.append(
-                        self._format_tag(self._normalize_genre(g))
-                    )
+            keep_allowed = set([
+                self._format_tag(self._normalize_genre(g))
+                for g in genres if self._is_allowed(g)
+            ])
             if keep_allowed:
-                keep_allowed = set(keep_allowed)
                 return ", ".join(keep_allowed), "keep"
 
         # Track genre (for Items only).
