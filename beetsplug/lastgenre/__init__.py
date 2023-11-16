@@ -416,7 +416,7 @@ class LastGenrePlugin(plugins.BeetsPlugin):
             if isinstance(obj, library.Item):
                 genres = obj.get("genre", with_album=False).split(separator)
             else:
-                genres = obj.get("genre").split(", ")
+                genres = obj.get("genre").split(separator)
             keep_allowed = set([
                 self._format_tag(self._normalize_genre(g))
                 for g in genres if self._is_allowed(g)
