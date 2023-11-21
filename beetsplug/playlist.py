@@ -46,8 +46,9 @@ class PlaylistQuery(InQuery[bytes]):
 
         paths = []
         for playlist_path in playlist_paths:
-            if not fnmatch.fnmatch(playlist_path, "*.[mM]3[uU]"):
+            if not fnmatch.fnmatch(playlist_path, "*.[mM]3[uU]?"):
                 # This is not am M3U playlist, skip this candidate
+                self._log.debug("This is not an m3u playlist")
                 continue
 
             try:
