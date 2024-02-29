@@ -1197,7 +1197,7 @@ class TerminalImportSession(importer.ImportSession):
                     print(f"  {item_path}")
 
             sel = ui.input_options(
-                ("Skip new", "Keep all", "Remove old", "Merge all", "Purge new")
+                ("Skip new", "Keep all", "Remove old", "Merge all", "Purge new", "Link")
             )
 
         if sel == "s":
@@ -1211,6 +1211,24 @@ class TerminalImportSession(importer.ImportSession):
             task.should_remove_duplicates = True
         elif sel == "m":
             task.should_merge_duplicates = True
+        elif sel == "l":
+            task.should_symlink_to_existing = True
+            for item in task.imported_items():
+                lib_items = self.lib.items(library.PathQuery("path", item.path))
+                if len(lib_items) >= 1:
+                    # q = "Really delete from library and purge file? (Y/n)"
+                    for lib_item in lib_items:
+                        cmd = "ln -s " 
+                        cmd += displayable_path(lib_item.path)
+                        cmd +=  " <TARGET>" 
+                        print(cmd)
+                else:
+                    print("No items in task.imported_items()")
+                    print(displayable_path(item.path))
+            #raise SystemExit(1) 
+                    
+                    # if ui.input_yn(q):
+                    #     lib_item.remove(delete=True)
         elif sel == "p":
             # Purge new
             task.should_remove_new = True

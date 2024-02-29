@@ -1055,7 +1055,7 @@ class Item(LibModel):
         instead of encoded as a bytestring. basedir can override the library's
         base directory for the destination.
         """
-        self._check_db()
+        # self._check_db()
         platform = platform or sys.platform
         basedir = basedir or self._db.directory
         path_formats = path_formats or self._db.path_formats

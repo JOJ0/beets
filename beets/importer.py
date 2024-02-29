@@ -501,6 +501,7 @@ class ImportTask(BaseImportTask):
         self.rec = None
         self.should_remove_duplicates = False
         self.should_merge_duplicates = False
+        self.should_symlink_to_existing = False
         self.is_album = True
         self.search_ids = []  # user-supplied candidate IDs.
 
@@ -1565,6 +1566,60 @@ def user_query(session, task):
             [merged_task], lookup_candidates(session), user_query(session)
         )
 
+    if task.should_symlink_to_existing:
+        PF_KEY_DEFAULT = "default"
+        from beets.library import parse_query_string
+        from beets.util.functemplate import Template, template
+        duplicate_items = task.duplicate_items(session.lib)
+        print("dup_paths:")
+        for item in duplicate_items:
+            print(f"ln -s {displayable_path(item.path)}")
+        # print("task.paths")
+        # print(task.paths)
+        # print("task.items")
+        # print(task.items)
+        # print(dir(task))
+        print("task.items[0].destination")
+        for new_item in task.items:
+            print("item")
+            print(dir(new_item))
+            path_formats = item._db.path_formats
+            print("path_formats")
+            print(path_formats)
+            print("evalutate_template")
+            print(new_item.evaluate_template(path_formats[0][1]))
+
+            for query, path_format in path_formats:
+                if query == PF_KEY_DEFAULT:
+                    continue
+                query, _ = parse_query_string(query, type(new_item))
+                if query.match(new_item):
+                    # The query matches the item! Use the corresponding path
+                    # format.
+                    break
+            else:
+                # No query matched; fall back to default.
+                for query, path_format in path_formats:
+                    if query == PF_KEY_DEFAULT:
+                        break
+                else:
+                    assert False, "no default path format"
+
+            if isinstance(path_format, Template):
+                subpath_tmpl = path_format
+            else:
+                subpath_tmpl = template(path_format)
+
+            # Evaluate the selected template.
+            subpath = new_item.evaluate_template(subpath_tmpl, True)
+            print("subpath")
+            print(subpath)
+
+            # print("__format__")
+            # print(new_item.__format__("format_item"))
+            print("destination")
+            print(displayable_path(new_item.destination()))
+
     apply_choice(session, task)
     return task
 
@@ -1604,6 +1659,9 @@ def resolve_duplicates(session, task):
             elif duplicate_action == "m":
                 # Merge duplicates together
                 task.should_merge_duplicates = True
+            elif duplicate_action == "l":
+                # Keep both and suggest link command
+                task.should_symlink_to_existing = True
             else:
                 # No default action set; ask the session.
                 session.resolve_duplicate(task, found_duplicates)
