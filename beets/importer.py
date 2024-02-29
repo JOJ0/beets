@@ -547,6 +547,7 @@ class ImportTask(BaseImportTask):
         self.rec = None
         self.should_remove_duplicates = False
         self.should_merge_duplicates = False
+        self.should_symlink_to_existing = False
         self.is_album = True
         self.search_ids = []  # user-supplied candidate IDs.
 
@@ -1636,6 +1637,40 @@ def user_query(session: ImportSession, task: ImportTask):
         )
 
     apply_choice(session, task)
+
+    if task.should_symlink_to_existing:
+        duplicate_items = task.duplicate_items(session.lib)
+        print("Existing in library:")
+        for item in duplicate_items:
+            print(f"{displayable_path(item.path)}")
+        print()
+
+        print("Newly imported:")
+        for new_item in task.items:
+            print(displayable_path(new_item.destination()))
+        print()
+
+        path_existing = os.path.dirname(
+            displayable_path(duplicate_items[0].path)
+        )
+        albumid_existing = duplicate_items[0].album_id
+        path_new = os.path.dirname(
+            displayable_path(task.items[0].destination())
+        )
+        albumid_new = task.items[0].album_id
+
+        print("Remove and symlink existing with:")
+        print(f"beet rm -a -d id:{albumid_existing}")
+        print(f'ln -s "{path_new}" "{path_existing}"')
+        print()
+        print("Remove and symlink new with:")
+        print(f"beet rm -a -d id:{albumid_new}")
+        print(f'ln -s "{path_existing}" "{path_new}"')
+        print()
+        print("Album display commands:")
+        print(f"beet ls -a id:{albumid_existing}")
+        print(f"beet ls -a id:{albumid_new}")
+
     return task
 
 
@@ -1674,6 +1709,9 @@ def resolve_duplicates(session: ImportSession, task: ImportTask):
             elif duplicate_action == "m":
                 # Merge duplicates together
                 task.should_merge_duplicates = True
+            elif duplicate_action == "l":
+                # Keep both and suggest link command
+                task.should_symlink_to_existing = True
             else:
                 # No default action set; ask the session.
                 session.resolve_duplicate(task, found_duplicates)
