@@ -1581,11 +1581,21 @@ def user_query(session, task):
         print()
 
         path_existing = os.path.dirname(displayable_path(duplicate_items[0].path))
+        albumid_existing = duplicate_items[0].album_id
         path_new = os.path.dirname(displayable_path(task.items[0].destination()))
+        albumid_new = task.items[0].album_id
 
-        print("Remove and symlink duplicate with:")
-        print("beet rm -a -d xxx")
-        print(f"ln -s '{path_new}' '{path_existing}'")
+        print("Remove and symlink existing with:")
+        print(f"beet rm -a -d id:{albumid_existing}")
+        print(f'ln -s "{path_new}" "{path_existing}"')
+        print()
+        print("Remove and symlink new with:")
+        print(f"beet rm -a -d id:{albumid_new}")
+        print(f'ln -s "{path_existing}" "{path_new}"')
+        print()
+        print("Album display commands:")
+        print(f"beet ls -a id:{albumid_existing}")
+        print(f"beet ls -a id:{albumid_new}")
 
     return task
 
