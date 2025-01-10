@@ -48,6 +48,10 @@ Bug fixes:
 * :doc:`plugins/lyrics`: Do not attempt to search for lyrics if either the
   artist or title is missing and ignore ``artist_sort`` value if it is empty.
   :bug:`2635`
+  * :doc:`plugins/lastgenre`: The new configuration option, ``keep_existing``,
+  provides more fine-grained control over how pre-populated genre tags are
+  handled. The ``force`` option now behaves in a more conventional manner.
+  :bug:`4982`
 
 For packagers:
 
