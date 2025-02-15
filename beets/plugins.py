@@ -19,6 +19,7 @@ from __future__ import annotations
 import abc
 import inspect
 import re
+import sys
 import traceback
 from collections import defaultdict
 from functools import wraps
@@ -28,7 +29,6 @@ from typing import (
     Callable,
     Generic,
     Sequence,
-    Type,
     TypedDict,
     TypeVar,
 )
@@ -37,16 +37,44 @@ import mediafile
 
 import beets
 from beets import logging
+from beets.util.id_extractors import extract_release_id
+
+if TYPE_CHECKING:
+    from beets.event_types import EventType
+
+if sys.version_info >= (3, 10):
+    from typing import ParamSpec
+else:
+    from typing_extensions import ParamSpec
+
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
     from confuse import ConfigView
 
-    from beets.autotag import AlbumInfo, Distance, TrackInfo
+    from beets.autotag import AlbumInfo, TrackInfo
+    from beets.autotag.distance import Distance
     from beets.dbcore import Query
+    from beets.dbcore.db import FieldQueryType
+    from beets.dbcore.types import Type
+    from beets.importer import ImportSession, ImportTask
     from beets.library import Album, Item, Library
     from beets.ui import Subcommand
+
+    # TYPE_CHECKING guard is needed for any derived type
+    # which uses an import from `beets.library` and `beets.imported`
+    ImportStageFunc = Callable[[ImportSession, ImportTask], None]
+    T = TypeVar("T", Album, Item, str)
+    TFunc = Callable[[T], str]
+    TFuncMap = dict[str, TFunc[T]]
+
+    AnyModel = TypeVar("AnyModel", Album, Item)
+
+    P = ParamSpec("P")
+    Ret = TypeVar("Ret", bound=Any)
+    Listener = Callable[..., None]
+    IterF = Callable[P, Iterable[Ret]]
 
 
 PLUGIN_NAMESPACE = "beetsplug"
@@ -83,11 +111,6 @@ class PluginLogFilter(logging.Filter):
         return True
 
 
-# Typing for listeners, we are not too sure about the
-# kwargs and args here, depends on the plugin
-Listener = Callable[..., None]
-
-
 # Managing the plugins themselves.
 
 
@@ -99,6 +122,8 @@ class BeetsPlugin:
 
     name: str
     config: ConfigView
+    early_import_stages: list[ImportStageFunc]
+    import_stages: list[ImportStageFunc]
 
     def __init__(self, name: str | None = None):
         """Perform one-time plugin setup."""
@@ -123,20 +148,23 @@ class BeetsPlugin:
         if not any(isinstance(f, PluginLogFilter) for f in self._log.filters):
             self._log.addFilter(PluginLogFilter(self))
 
-    def commands(self):
+    def commands(self) -> Sequence[Subcommand]:
         """Should return a list of beets.ui.Subcommand objects for
         commands that should be added to beets' CLI.
         """
         return ()
 
-    def _set_stage_log_level(self, stages):
+    def _set_stage_log_level(
+        self,
+        stages: list[ImportStageFunc],
+    ) -> list[ImportStageFunc]:
         """Adjust all the stages in `stages` to WARNING logging level."""
         return [
             self._set_log_level_and_params(logging.WARNING, stage)
             for stage in stages
         ]
 
-    def get_early_import_stages(self):
+    def get_early_import_stages(self) -> list[ImportStageFunc]:
         """Return a list of functions that should be called as importer
         pipelines stages early in the pipeline.
 
@@ -146,7 +174,7 @@ class BeetsPlugin:
         """
         return self._set_stage_log_level(self.early_import_stages)
 
-    def get_import_stages(self):
+    def get_import_stages(self) -> list[ImportStageFunc]:
         """Return a list of functions that should be called as importer
         pipelines stages.
 
@@ -156,7 +184,11 @@ class BeetsPlugin:
         """
         return self._set_stage_log_level(self.import_stages)
 
-    def _set_log_level_and_params(self, base_log_level, func):
+    def _set_log_level_and_params(
+        self,
+        base_log_level: int,
+        func: Callable[P, Ret],
+    ) -> Callable[P, Ret]:
         """Wrap `func` to temporarily set this plugin's logger level to
         `base_log_level` + config options (and restore it to its previous
         value after the function returns). Also determines which params may not
@@ -165,14 +197,14 @@ class BeetsPlugin:
         argspec = inspect.getfullargspec(func)
 
         @wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> Ret:
             assert self._log.level == logging.NOTSET
 
             verbosity = beets.config["verbose"].get(int)
             log_level = max(logging.DEBUG, base_log_level - 10 * verbosity)
             self._log.setLevel(log_level)
             if argspec.varkw is None:
-                kwargs = {k: v for k, v in kwargs.items() if k in argspec.args}
+                kwargs = {k: v for k, v in kwargs.items() if k in argspec.args}  # type: ignore[assignment]
 
             try:
                 return func(*args, **kwargs)
@@ -193,46 +225,45 @@ class BeetsPlugin:
         """Should return a Distance object to be added to the
         distance for every track comparison.
         """
-        from beets.autotag.hooks import Distance
+        from beets.autotag.distance import Distance
 
         return Distance()
 
     def album_distance(
         self,
-        items: list[Item],
+        items: Sequence[Item],
         album_info: AlbumInfo,
         mapping: dict[Item, TrackInfo],
     ) -> Distance:
         """Should return a Distance object to be added to the
         distance for every album-level comparison.
         """
-        from beets.autotag.hooks import Distance
+        from beets.autotag.distance import Distance
 
         return Distance()
 
     def candidates(
-        self,
-        items: list[Item],
-        artist: str,
-        album: str,
-        va_likely: bool,
-        extra_tags: dict[str, Any] | None = None,
-    ) -> Sequence[AlbumInfo]:
-        """Should return a sequence of AlbumInfo objects that match the
-        album whose items are provided.
+        self, items: list[Item], artist: str, album: str, va_likely: bool
+    ) -> Iterable[AlbumInfo]:
+        """Return :py:class:`AlbumInfo` candidates that match the given album.
+
+        :param items: List of items in the album
+        :param artist: Album artist
+        :param album: Album name
+        :param va_likely: Whether the album is likely to be by various artists
         """
-        return ()
+        yield from ()
 
     def item_candidates(
-        self,
-        item: Item,
-        artist: str,
-        title: str,
-    ) -> Sequence[TrackInfo]:
-        """Should return a sequence of TrackInfo objects that match the
-        item provided.
+        self, item: Item, artist: str, title: str
+    ) -> Iterable[TrackInfo]:
+        """Return :py:class:`TrackInfo` candidates that match the given track.
+
+        :param item: Track item
+        :param artist: Track artist
+        :param title: Track title
         """
-        return ()
+        yield from ()
 
     def album_for_id(self, album_id: str) -> AlbumInfo | None:
         """Return an AlbumInfo object or None if no matching release was
@@ -246,7 +277,9 @@ class BeetsPlugin:
         """
         return None
 
-    def add_media_field(self, name: str, descriptor: mediafile.MediaField):
+    def add_media_field(
+        self, name: str, descriptor: mediafile.MediaField
+    ) -> None:
         """Add a field that is synchronized between media files and items.
 
         When a media field is added ``item.write()`` will set the name
@@ -263,7 +296,7 @@ class BeetsPlugin:
     _raw_listeners: dict[str, list[Listener]] | None = None
     listeners: dict[str, list[Listener]] | None = None
 
-    def register_listener(self, event: str, func: Listener):
+    def register_listener(self, event: "EventType", func: Listener):
         """Add a function as a listener for the specified event."""
         wrapped_func = self._set_log_level_and_params(logging.WARNING, func)
 
@@ -276,18 +309,18 @@ class BeetsPlugin:
             cls._raw_listeners[event].append(func)
             cls.listeners[event].append(wrapped_func)
 
-    template_funcs: dict[str, Callable[[str, Any], str]] | None = None
-    template_fields: dict[str, Callable[[Item], str]] | None = None
-    album_template_fields: dict[str, Callable[[Album], str]] | None = None
+    template_funcs: TFuncMap[str] | None = None
+    template_fields: TFuncMap[Item] | None = None
+    album_template_fields: TFuncMap[Album] | None = None
 
     @classmethod
-    def template_func(cls, name: str):
+    def template_func(cls, name: str) -> Callable[[TFunc[str]], TFunc[str]]:
         """Decorator that registers a path template function. The
         function will be invoked as ``%name{}`` from path format
         strings.
         """
 
-        def helper(func):
+        def helper(func: TFunc[str]) -> TFunc[str]:
             if cls.template_funcs is None:
                 cls.template_funcs = {}
             cls.template_funcs[name] = func
@@ -296,14 +329,14 @@ class BeetsPlugin:
         return helper
 
     @classmethod
-    def template_field(cls, name: str):
+    def template_field(cls, name: str) -> Callable[[TFunc[Item]], TFunc[Item]]:
         """Decorator that registers a path template field computation.
         The value will be referenced as ``$name`` from path format
         strings. The function must accept a single parameter, the Item
         being formatted.
         """
 
-        def helper(func):
+        def helper(func: TFunc[Item]) -> TFunc[Item]:
             if cls.template_fields is None:
                 cls.template_fields = {}
             cls.template_fields[name] = func
@@ -315,7 +348,7 @@ class BeetsPlugin:
 _classes: set[type[BeetsPlugin]] = set()
 
 
-def load_plugins(names: Sequence[str] = ()):
+def load_plugins(names: Sequence[str] = ()) -> None:
     """Imports the modules for a sequence of plugin names. Each name
     must be the name of a Python module under the "beetsplug" namespace
     package in sys.path; the module indicated should contain the
@@ -338,6 +371,7 @@ def load_plugins(names: Sequence[str] = ()):
                         isinstance(obj, type)
                         and issubclass(obj, BeetsPlugin)
                         and obj != BeetsPlugin
+                        and obj != MetadataSourcePlugin
                         and obj not in _classes
                     ):
                         _classes.add(obj)
@@ -350,7 +384,7 @@ def load_plugins(names: Sequence[str] = ()):
             )
 
 
-_instances: dict[Type[BeetsPlugin], BeetsPlugin] = {}
+_instances: dict[type[BeetsPlugin], BeetsPlugin] = {}
 
 
 def find_plugins() -> list[BeetsPlugin]:
@@ -378,7 +412,7 @@ def find_plugins() -> list[BeetsPlugin]:
 
 def commands() -> list[Subcommand]:
     """Returns a list of Subcommand objects from all loaded plugins."""
-    out = []
+    out: list[Subcommand] = []
     for plugin in find_plugins():
         out += plugin.commands()
     return out
@@ -394,10 +428,10 @@ def queries() -> dict[str, type[Query]]:
     return out
 
 
-def types(model_cls):
+def types(model_cls: type[AnyModel]) -> dict[str, Type]:
     # Gives us `item_types` and `album_types`
     attr_name = f"{model_cls.__name__.lower()}_types"
-    types = {}
+    types: dict[str, Type] = {}
     for plugin in find_plugins():
         plugin_types = getattr(plugin, attr_name, {})
         for field in plugin_types:
@@ -411,10 +445,10 @@ def types(model_cls):
     return types
 
 
-def named_queries(model_cls):
+def named_queries(model_cls: type[AnyModel]) -> dict[str, FieldQueryType]:
     # Gather `item_queries` and `album_queries` from the plugins.
     attr_name = f"{model_cls.__name__.lower()}_queries"
-    queries = {}
+    queries: dict[str, FieldQueryType] = {}
     for plugin in find_plugins():
         plugin_queries = getattr(plugin, attr_name, {})
         queries.update(plugin_queries)
@@ -425,7 +459,7 @@ def track_distance(item: Item, info: TrackInfo) -> Distance:
     """Gets the track distance calculated by all loaded plugins.
     Returns a Distance object.
     """
-    from beets.autotag.hooks import Distance
+    from beets.autotag.distance import Distance
 
     dist = Distance()
     for plugin in find_plugins():
@@ -434,12 +468,12 @@ def track_distance(item: Item, info: TrackInfo) -> Distance:
 
 
 def album_distance(
-    items: list[Item],
+    items: Sequence[Item],
     album_info: AlbumInfo,
     mapping: dict[Item, TrackInfo],
 ) -> Distance:
     """Returns the album distance calculated by plugins."""
-    from beets.autotag.hooks import Distance
+    from beets.autotag.distance import Distance
 
     dist = Distance()
     for plugin in find_plugins():
@@ -447,76 +481,101 @@ def album_distance(
     return dist
 
 
-def candidates(
-    items: list[Item],
-    artist: str,
-    album: str,
-    va_likely: bool,
-    extra_tags: dict[str, Any] | None = None,
-) -> Iterable[AlbumInfo]:
-    """Gets MusicBrainz candidates for an album from each plugin."""
+def notify_info_yielded(event: str) -> Callable[[IterF[P, Ret]], IterF[P, Ret]]:
+    """Makes a generator send the event 'event' every time it yields.
+    This decorator is supposed to decorate a generator, but any function
+    returning an iterable should work.
+    Each yielded value is passed to plugins using the 'info' parameter of
+    'send'.
+    """
+
+    def decorator(func: IterF[P, Ret]) -> IterF[P, Ret]:
+        @wraps(func)
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> Iterable[Ret]:
+            for v in func(*args, **kwargs):
+                send(event, info=v)
+                yield v
+
+        return wrapper
+
+    return decorator
+
+
+@notify_info_yielded("albuminfo_received")
+def candidates(*args, **kwargs) -> Iterable[AlbumInfo]:
+    """Return matching album candidates from all plugins."""
     for plugin in find_plugins():
-        yield from plugin.candidates(
-            items, artist, album, va_likely, extra_tags
-        )
+        yield from plugin.candidates(*args, **kwargs)
 
 
-def item_candidates(item: Item, artist: str, title: str) -> Iterable[TrackInfo]:
-    """Gets MusicBrainz candidates for an item from the plugins."""
+@notify_info_yielded("trackinfo_received")
+def item_candidates(*args, **kwargs) -> Iterable[TrackInfo]:
+    """Return matching track candidates from all plugins."""
     for plugin in find_plugins():
-        yield from plugin.item_candidates(item, artist, title)
+        yield from plugin.item_candidates(*args, **kwargs)
 
 
-def album_for_id(album_id: str) -> Iterable[AlbumInfo]:
-    """Get AlbumInfo objects for a given ID string."""
+def album_for_id(_id: str) -> AlbumInfo | None:
+    """Get AlbumInfo object for the given ID string.
+
+    A single ID can yield just a single album, so we return the first match.
+    """
     for plugin in find_plugins():
-        album = plugin.album_for_id(album_id)
-        if album:
-            yield album
+        if info := plugin.album_for_id(_id):
+            send("albuminfo_received", info=info)
+            return info
+
+    return None
 
 
-def track_for_id(track_id: str) -> Iterable[TrackInfo]:
-    """Get TrackInfo objects for a given ID string."""
+def track_for_id(_id: str) -> TrackInfo | None:
+    """Get TrackInfo object for the given ID string.
+
+    A single ID can yield just a single track, so we return the first match.
+    """
     for plugin in find_plugins():
-        track = plugin.track_for_id(track_id)
-        if track:
-            yield track
+        if info := plugin.track_for_id(_id):
+            send("trackinfo_received", info=info)
+            return info
+
+    return None
 
 
-def template_funcs():
+def template_funcs() -> TFuncMap[str]:
     """Get all the template functions declared by plugins as a
     dictionary.
     """
-    funcs = {}
+    funcs: TFuncMap[str] = {}
     for plugin in find_plugins():
         if plugin.template_funcs:
             funcs.update(plugin.template_funcs)
     return funcs
 
 
-def early_import_stages():
+def early_import_stages() -> list[ImportStageFunc]:
     """Get a list of early import stage functions defined by plugins."""
-    stages = []
+    stages: list[ImportStageFunc] = []
     for plugin in find_plugins():
         stages += plugin.get_early_import_stages()
     return stages
 
 
-def import_stages():
+def import_stages() -> list[ImportStageFunc]:
     """Get a list of import stage functions defined by plugins."""
-    stages = []
+    stages: list[ImportStageFunc] = []
     for plugin in find_plugins():
         stages += plugin.get_import_stages()
     return stages
 
 
 # New-style (lazy) plugin-provided fields.
-F = TypeVar("F", Callable[[Item], str], Callable[[Album], str])
+
+F = TypeVar("F")
 
 
 def _check_conflicts_and_merge(
     plugin: BeetsPlugin, plugin_funcs: dict[str, F] | None, funcs: dict[str, F]
-):
+) -> None:
     """Check the provided template functions for conflicts and merge into funcs.
 
     Raises a `PluginConflictError` if a plugin defines template functions
@@ -532,19 +591,19 @@ def _check_conflicts_and_merge(
         funcs.update(plugin_funcs)
 
 
-def item_field_getters() -> dict[str, Callable[[Item], str]]:
+def item_field_getters() -> TFuncMap[Item]:
     """Get a dictionary mapping field names to unary functions that
     compute the field's value.
     """
-    funcs: dict[str, Callable[[Item], str]] = {}
+    funcs: TFuncMap[Item] = {}
     for plugin in find_plugins():
         _check_conflicts_and_merge(plugin, plugin.template_fields, funcs)
     return funcs
 
 
-def album_field_getters() -> dict[str, Callable[[Album], str]]:
+def album_field_getters() -> TFuncMap[Album]:
     """As above, for album fields."""
-    funcs: dict[str, Callable[[Album], str]] = {}
+    funcs: TFuncMap[Album] = {}
     for plugin in find_plugins():
         _check_conflicts_and_merge(plugin, plugin.album_template_fields, funcs)
     return funcs
@@ -565,7 +624,7 @@ def event_handlers() -> dict[str, list[Listener]]:
     return all_handlers
 
 
-def send(event: str, **arguments: Any):
+def send(event: str, **arguments: Any) -> list[Any]:
     """Send an event to all assigned event listeners.
 
     `event` is the name of  the event to send, all other named arguments
@@ -574,7 +633,7 @@ def send(event: str, **arguments: Any):
     Return a list of non-None values returned from the handlers.
     """
     log.debug("Sending event: {0}", event)
-    results = []
+    results: list[Any] = []
     for handler in event_handlers()[event]:
         result = handler(**arguments)
         if result is not None:
@@ -582,7 +641,7 @@ def send(event: str, **arguments: Any):
     return results
 
 
-def feat_tokens(for_artist=True):
+def feat_tokens(for_artist: bool = True) -> str:
     """Return a regular expression that matches phrases like "featuring"
     that separate a main artist or a song title from secondary artists.
     The `for_artist` option determines whether the regex should be
@@ -596,88 +655,13 @@ def feat_tokens(for_artist=True):
     )
 
 
-def sanitize_choices(choices, choices_all):
-    """Clean up a stringlist configuration attribute: keep only choices
-    elements present in choices_all, remove duplicate elements, expand '*'
-    wildcard while keeping original stringlist order.
-    """
-    seen = set()
-    others = [x for x in choices_all if x not in choices]
-    res = []
-    for s in choices:
-        if s not in seen:
-            if s in list(choices_all):
-                res.append(s)
-            elif s == "*":
-                res.extend(others)
-        seen.add(s)
-    return res
-
-
-def sanitize_pairs(pairs, pairs_all):
-    """Clean up a single-element mapping configuration attribute as returned
-    by Confuse's `Pairs` template: keep only two-element tuples present in
-    pairs_all, remove duplicate elements, expand ('str', '*') and ('*', '*')
-    wildcards while keeping the original order. Note that ('*', '*') and
-    ('*', 'whatever') have the same effect.
-
-    For example,
-
-    >>> sanitize_pairs(
-    ...     [('foo', 'baz bar'), ('key', '*'), ('*', '*')],
-    ...     [('foo', 'bar'), ('foo', 'baz'), ('foo', 'foobar'),
-    ...      ('key', 'value')]
-    ...     )
-    [('foo', 'baz'), ('foo', 'bar'), ('key', 'value'), ('foo', 'foobar')]
-    """
-    pairs_all = list(pairs_all)
-    seen = set()
-    others = [x for x in pairs_all if x not in pairs]
-    res = []
-    for k, values in pairs:
-        for v in values.split():
-            x = (k, v)
-            if x in pairs_all:
-                if x not in seen:
-                    seen.add(x)
-                    res.append(x)
-            elif k == "*":
-                new = [o for o in others if o not in seen]
-                seen.update(new)
-                res.extend(new)
-            elif v == "*":
-                new = [o for o in others if o not in seen and o[0] == k]
-                seen.update(new)
-                res.extend(new)
-    return res
-
-
-def notify_info_yielded(event):
-    """Makes a generator send the event 'event' every time it yields.
-    This decorator is supposed to decorate a generator, but any function
-    returning an iterable should work.
-    Each yielded value is passed to plugins using the 'info' parameter of
-    'send'.
-    """
-
-    def decorator(generator):
-        def decorated(*args, **kwargs):
-            for v in generator(*args, **kwargs):
-                send(event, info=v)
-                yield v
-
-        return decorated
-
-    return decorator
-
-
 def get_distance(
     config: ConfigView, data_source: str, info: AlbumInfo | TrackInfo
 ) -> Distance:
     """Returns the ``data_source`` weight and the maximum source weight
     for albums or individual tracks.
     """
-    from beets.autotag.hooks import Distance
+    from beets.autotag.distance import Distance
 
     dist = Distance()
     if info.data_source == data_source:
@@ -687,7 +671,7 @@ def get_distance(
 
 def apply_item_changes(
     lib: Library, item: Item, move: bool, pretend: bool, write: bool
-):
+) -> None:
     """Store, move, and write the item according to the arguments.
 
     :param lib: beets library.
@@ -722,15 +706,6 @@ class Response(TypedDict):
     id: str
 
 
-class RegexDict(TypedDict):
-    """A dictionary containing a regex pattern and the number of the
-    match group.
-    """
-
-    pattern: str
-    match_group: int
-
-
 R = TypeVar("R", bound=Response)
 
 
@@ -738,11 +713,6 @@ class MetadataSourcePlugin(Generic[R], BeetsPlugin, metaclass=abc.ABCMeta):
     def __init__(self):
         super().__init__()
         self.config.add({"source_weight": 0.5})
-
-    @property
-    @abc.abstractmethod
-    def id_regex(self) -> RegexDict:
-        raise NotImplementedError
 
     @property
     @abc.abstractmethod
@@ -765,7 +735,12 @@ class MetadataSourcePlugin(Generic[R], BeetsPlugin, metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def _search_api(self, query_type, filters, keywords="") -> Sequence[R]:
+    def _search_api(
+        self,
+        query_type: str,
+        filters: dict[str, str] | None,
+        keywords: str = "",
+    ) -> Sequence[R]:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -773,9 +748,7 @@ class MetadataSourcePlugin(Generic[R], BeetsPlugin, metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def track_for_id(
-        self, track_id: str | None = None, track_data: R | None = None
-    ) -> TrackInfo | None:
+    def track_for_id(self, track_id: str) -> TrackInfo | None:
         raise NotImplementedError
 
     @staticmethod
@@ -830,70 +803,32 @@ class MetadataSourcePlugin(Generic[R], BeetsPlugin, metaclass=abc.ABCMeta):
 
         return artist_string, artist_id
 
-    @staticmethod
-    def _get_id(url_type: str, id_: str, id_regex: RegexDict) -> str | None:
-        """Parse an ID from its URL if necessary.
-
-        :param url_type: Type of URL. Either 'album' or 'track'.
-        :param id_: Album/track ID or URL.
-        :param id_regex: A dictionary containing a regular expression
-            extracting an ID from an URL (if it's not an ID already) in
-            'pattern' and the number of the match group in 'match_group'.
-        :return: Album/track ID.
-        """
-        log.debug("Extracting {} ID from '{}'", url_type, id_)
-        match = re.search(id_regex["pattern"].format(url_type), str(id_))
-        if match:
-            id_ = match.group(id_regex["match_group"])
-            if id_:
-                return id_
-        return None
+    def _get_id(self, id_string: str) -> str | None:
+        """Parse release ID from the given ID string."""
+        return extract_release_id(self.data_source.lower(), id_string)
 
     def candidates(
-        self,
-        items: list[Item],
-        artist: str,
-        album: str,
-        va_likely: bool,
-        extra_tags: dict[str, Any] | None = None,
-    ) -> Sequence[AlbumInfo]:
-        """Returns a list of AlbumInfo objects for Search API results
-        matching an ``album`` and ``artist`` (if not various).
-
-        :param items: List of items comprised by an album to be matched.
-        :param artist: The artist of the album to be matched.
-        :param album: The name of the album to be matched.
-        :param va_likely: True if the album to be matched likely has
-            Various Artists.
-        """
+        self, items: list[Item], artist: str, album: str, va_likely: bool
+    ) -> Iterable[AlbumInfo]:
         query_filters = {"album": album}
         if not va_likely:
             query_filters["artist"] = artist
-        results = self._search_api(query_type="album", filters=query_filters)
-        albums = [self.album_for_id(album_id=r["id"]) for r in results]
-        return [a for a in albums if a is not None]
+        for result in self._search_api("album", query_filters):
+            if info := self.album_for_id(result["id"]):
+                yield info
 
     def item_candidates(
         self, item: Item, artist: str, title: str
-    ) -> Sequence[TrackInfo]:
-        """Returns a list of TrackInfo objects for Search API results
-        matching ``title`` and ``artist``.
-
-        :param item: Singleton item to be matched.
-        :param artist: The artist of the track to be matched.
-        :param title: The title of the track to be matched.
-        """
-        track_responses = self._search_api(
-            query_type="track", keywords=title, filters={"artist": artist}
-        )
-
-        tracks = [self.track_for_id(track_data=r) for r in track_responses]
-
-        return [t for t in tracks if t is not None]
+    ) -> Iterable[TrackInfo]:
+        for result in self._search_api(
+            "track", {"artist": artist}, keywords=title
+        ):
+            if info := self.track_for_id(result["id"]):
+                yield info
 
     def album_distance(
         self,
-        items: list[Item],
+        items: Sequence[Item],
         album_info: AlbumInfo,
         mapping: dict[Item, TrackInfo],
     ) -> Distance:
