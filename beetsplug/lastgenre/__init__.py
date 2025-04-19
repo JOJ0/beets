@@ -105,6 +105,7 @@ class LastGenrePlugin(plugins.BeetsPlugin):
                 "prefer_specific": False,
                 "title_case": True,
                 "extended_debug": False,
+                "blacklist": None,  # Path to YAML blacklist file
             }
         )
         self.setup()
@@ -148,6 +149,18 @@ class LastGenrePlugin(plugins.BeetsPlugin):
             with codecs.open(c14n_filename, "r", encoding="utf-8") as f:
                 genres_tree = yaml.safe_load(f)
             flatten_tree(genres_tree, [], self.c14n_branches)
+
+        # Load blacklist if configured
+        self.blacklist = {}
+        bl_filename = self.config["blacklist"].get()
+        if bl_filename:
+            bl_filename = normpath(bl_filename)
+            try:
+                with codecs.open(bl_filename, 'r', encoding='utf-8') as f:
+                    self.blacklist = yaml.safe_load(f)
+                self._log.debug("Loaded genre blacklist from {0}", bl_filename)
+            except Exception as exc:
+                self._log.error("Error loading blacklist file: {0}", exc)
 
     @property
     def sources(self) -> tuple[str, ...]:
