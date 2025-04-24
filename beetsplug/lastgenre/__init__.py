@@ -273,9 +273,8 @@ class LastGenrePlugin(plugins.BeetsPlugin):
         if not genres:
             return []
 
-        # First remove forbidden genres if we have an artist
-        if artist:
-            genres = [g for g in genres if not self._is_forbidden(g, artist)]
+        # First remove forbidden genres
+        genres = [g for g in genres if not self._is_forbidden(g, artist)]
 
         # Then apply whitelist filter
         return [x for x in genres if self._is_valid(x)]
