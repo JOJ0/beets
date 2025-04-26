@@ -23,7 +23,9 @@ https://gist.github.com/1241307
 """
 
 import codecs
+import configparser
 import os
+import re
 import traceback
 from typing import Union
 
@@ -84,6 +86,7 @@ def find_parents(candidate, branches):
 
 WHITELIST = os.path.join(os.path.dirname(__file__), "genres.txt")
 C14N_TREE = os.path.join(os.path.dirname(__file__), "genres-tree.yaml")
+ALIASES = os.path.join(os.path.dirname(__file__), "aliases.ini")
 
 
 class LastGenrePlugin(plugins.BeetsPlugin):
@@ -106,6 +109,7 @@ class LastGenrePlugin(plugins.BeetsPlugin):
                 "title_case": True,
                 "extended_debug": False,
                 "blacklist": None,  # Path to YAML blacklist file
+                "aliases": True,  # True for default aliases file
             }
         )
         self.setup()
@@ -161,6 +165,27 @@ class LastGenrePlugin(plugins.BeetsPlugin):
                 self._log.debug("Loaded genre blacklist from {0}", bl_filename)
             except Exception as exc:
                 self._log.error("Error loading blacklist file: {0}", exc)
+
+        # Load genre aliases if configured
+        self.aliases = []
+        aliases_filename = self.config["aliases"].get()
+        if aliases_filename in (True, ""):  # Indicates the default aliases file.
+            aliases_filename = ALIASES
+        if aliases_filename:
+            aliases_filename = normpath(aliases_filename)
+            try:
+                config_parser = configparser.ConfigParser()
+                config_parser.read(aliases_filename, encoding="utf-8")
+                for section in config_parser.sections():
+                    self.aliases.extend(
+                        {pattern: replacement}
+                        for pattern, replacement in config_parser[section].items()
+                    )
+                self._log.debug(
+                    "Loaded genre aliases from {0}", aliases_filename
+                )
+            except Exception as exc:
+                self._log.error("Error loading aliases file: {0}", exc)
 
     @property
     def sources(self) -> tuple[str, ...]:
@@ -220,6 +245,9 @@ class LastGenrePlugin(plugins.BeetsPlugin):
         """
         if not tags:
             return []
+
+        # Apply aliases early in the process
+        tags = self._apply_aliases(tags)
 
         count = self.config["count"].get(int)
         if self.canonicalize:
