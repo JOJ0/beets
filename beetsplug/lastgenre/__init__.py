@@ -85,6 +85,7 @@ def find_parents(candidate, branches):
 
 WHITELIST = os.path.join(os.path.dirname(__file__), "genres.txt")
 C14N_TREE = os.path.join(os.path.dirname(__file__), "genres-tree.yaml")
+ALIASES = os.path.join(os.path.dirname(__file__), "aliases.yaml")
 
 
 class LastGenrePlugin(plugins.BeetsPlugin):
@@ -167,6 +168,8 @@ class LastGenrePlugin(plugins.BeetsPlugin):
         # Load genre aliases if configured
         self.aliases = []
         aliases_filename = self.config["aliases"].get()
+        if aliases_filename in (True, ""):  # Indicates the default aliases file.
+            aliases_filename = ALIASES
         if aliases_filename:
             aliases_filename = normpath(aliases_filename)
             try:
