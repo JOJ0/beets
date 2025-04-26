@@ -24,6 +24,7 @@ https://gist.github.com/1241307
 
 from __future__ import annotations
 
+import configparser
 import os
 import re
 import traceback
@@ -38,7 +39,7 @@ import yaml
 from beets import config, library, plugins, ui
 from beets.library import Album, Item
 from beets.ui import UserError
-from beets.util import plurality, unique_list
+from beets.util import normpath, plurality, unique_list
 
 if TYPE_CHECKING:
     import optparse
@@ -96,6 +97,7 @@ def find_parents(candidate: str, branches: list[list[str]]) -> list[str]:
 
 WHITELIST = os.path.join(os.path.dirname(__file__), "genres.txt")
 C14N_TREE = os.path.join(os.path.dirname(__file__), "genres-tree.yaml")
+ALIASES = os.path.join(os.path.dirname(__file__), "aliases.ini")
 
 
 class LastGenrePlugin(plugins.BeetsPlugin):
@@ -118,6 +120,7 @@ class LastGenrePlugin(plugins.BeetsPlugin):
                 "title_case": True,
                 "pretend": False,
                 "blacklist": False,
+                "aliases": True,
             }
         )
         self.setup()
@@ -128,6 +131,8 @@ class LastGenrePlugin(plugins.BeetsPlugin):
             self.import_stages = [self.imported]
 
         self._genre_cache: dict[str, list[str]] = {}
+        # Load aliases first so they can be applied to whitelist and c14n tree
+        self.aliases = self._load_aliases()
         self.whitelist = self._load_whitelist()
         self.c14n_branches, self.canonicalize = self._load_c14n_tree()
         self.blacklist = self._load_blacklist()
@@ -136,6 +141,7 @@ class LastGenrePlugin(plugins.BeetsPlugin):
         """Load the whitelist from a text file.
 
         Default whitelist is used if config is True, empty string or set to "nothing".
+        If configured, aliases are applied to whitelist entries.
         """
         whitelist = set()
         wl_filename = self.config["whitelist"].get()
@@ -148,13 +154,22 @@ class LastGenrePlugin(plugins.BeetsPlugin):
                 if (line := line.strip().lower()) and not line.startswith("#"):
                     whitelist.add(line)
 
+        if whitelist and self.aliases:
+            whitelist_list = list(whitelist)
+            aliased_whitelist = self._apply_aliases(whitelist_list)
+            whitelist = set(aliased_whitelist)
+            self._log.debug(
+                "Applied aliases to {} whitelist entries", len(whitelist)
+            )
+
         return whitelist
 
     def _load_c14n_tree(self) -> tuple[list[list[str]], bool]:
         """Load the canonicalization tree from a YAML file.
 
         Default tree is used if config is True, empty string, set to "nothing"
-        or if prefer_specific is enabled.
+        or if prefer_specific is enabled. If configured aliases are applied to
+        the tree entries.
         """
         c14n_branches: list[list[str]] = []
         c14n_filename = self.config["canonical"].get()
@@ -171,6 +186,15 @@ class LastGenrePlugin(plugins.BeetsPlugin):
             with Path(c14n_filename).expanduser().open(encoding="utf-8") as f:
                 genres_tree = yaml.safe_load(f)
             flatten_tree(genres_tree, [], c14n_branches)
+
+            if c14n_branches and self.aliases:
+                for i, branch in enumerate(c14n_branches):
+                    c14n_branches[i] = self._apply_aliases(branch)
+                self._log.debug(
+                    "Applied aliases to {} c14n tree branches",
+                    len(c14n_branches),
+                )
+
         return c14n_branches, canonicalize
 
     def _tunelog(self, msg: str, *args: Any, **kwargs: Any) -> None:
@@ -249,6 +273,35 @@ class LastGenrePlugin(plugins.BeetsPlugin):
             compiled_blacklist[artist] = compiled_patterns
         return compiled_blacklist
 
+    def _load_aliases(self) -> list[str]:
+        """Load configured aliases for a list of tags."""
+        aliases = []
+        aliases_filename = self.config["aliases"].get()
+        if aliases_filename in (
+            True,
+            "",
+            None,
+        ):  # Indicates the default aliases file.
+            aliases_filename = ALIASES
+        if aliases_filename:
+            aliases_filename = normpath(aliases_filename)
+            try:
+                config_parser = configparser.ConfigParser()
+                config_parser.read(aliases_filename, encoding="utf-8")
+                for section in config_parser.sections():
+                    aliases.extend(
+                        {pattern: replacement}
+                        for pattern, replacement in config_parser[
+                            section
+                        ].items()
+                    )
+                self._log.debug(
+                    "Loaded genre aliases from {0}", aliases_filename
+                )
+            except Exception as exc:
+                self._log.error("Error loading aliases file: {0}", exc)
+        return aliases
+
     @property
     def sources(self) -> tuple[str, ...]:
         """A tuple of allowed genre sources. May contain 'track',
@@ -302,6 +355,11 @@ class LastGenrePlugin(plugins.BeetsPlugin):
         """
         if not tags:
             return []
+
+        # Apply aliases to input genres once at entry point
+        if self.aliases:
+            tags = self._apply_aliases(tags)
+            self._tunelog("genres after alias resolution: {}", tags)
 
         count = self.config["count"].get(int)
 
@@ -390,6 +448,29 @@ class LastGenrePlugin(plugins.BeetsPlugin):
                         return True
 
         return False
+
+    def _apply_aliases(self, genres):
+        """Apply regex aliases to the genre list.
+
+        Returns lowercase genres to maintain consistency with the rest
+        of the genre system.
+        """
+        if not self.aliases or not genres:
+            return genres
+
+        result = genres.copy()
+        for alias_pair in self.aliases:
+            for pattern, replacement in alias_pair.items():
+                try:
+                    result = [
+                        re.sub(pattern, replacement, genre, flags=re.IGNORECASE)
+                        for genre in result
+                    ]
+                except re.error as exc:
+                    self._log.error(
+                        "Regex error in pattern '{0}': {1}", pattern, exc
+                    )
+        return [g.lower() for g in result]
 
     # Cached last.fm entity lookups.
 
@@ -552,7 +633,7 @@ class LastGenrePlugin(plugins.BeetsPlugin):
 
         if self.config["force"]:
             # Force doesn't keep any unless keep_existing is set.
-            # Whitelist validation is handled in _resolve_genres.
+            # Whitelist validation and alias application is handled in _resolve_genres.
             if self.config["keep_existing"]:
                 keep_genres = [g.lower() for g in genres]
 
