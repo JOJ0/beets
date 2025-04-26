@@ -24,6 +24,7 @@ https://gist.github.com/1241307
 
 import codecs
 import os
+import re
 import traceback
 from typing import Union
 
@@ -106,6 +107,7 @@ class LastGenrePlugin(plugins.BeetsPlugin):
                 "title_case": True,
                 "extended_debug": False,
                 "blacklist": None,  # Path to YAML blacklist file
+                "aliases": None,  # Path to YAML aliases file
             }
         )
         self.setup()
@@ -161,6 +163,20 @@ class LastGenrePlugin(plugins.BeetsPlugin):
                 self._log.debug("Loaded genre blacklist from {0}", bl_filename)
             except Exception as exc:
                 self._log.error("Error loading blacklist file: {0}", exc)
+
+        # Load genre aliases if configured
+        self.aliases = []
+        aliases_filename = self.config["aliases"].get()
+        if aliases_filename:
+            aliases_filename = normpath(aliases_filename)
+            try:
+                with codecs.open(aliases_filename, "r", encoding="utf-8") as f:
+                    self.aliases = yaml.safe_load(f)
+                self._log.debug(
+                    "Loaded genre aliases from {0}", aliases_filename
+                )
+            except Exception as exc:
+                self._log.error("Error loading aliases file: {0}", exc)
 
     @property
     def sources(self) -> tuple[str, ...]:
@@ -221,6 +237,9 @@ class LastGenrePlugin(plugins.BeetsPlugin):
         if not tags:
             return []
 
+        # Apply aliases early in the process
+        tags = self._apply_aliases(tags)
+
         count = self.config["count"].get(int)
         if self.canonicalize:
             # Extend the list to consider tags parents in the c14n tree
@@ -280,6 +299,47 @@ class LastGenrePlugin(plugins.BeetsPlugin):
         if genre and (not self.whitelist or genre.lower() in self.whitelist):
             return True
         return False
+
+    def _is_forbidden(self, genre: str, artist: str) -> bool:
+        """Return True if the genre is forbidden for the artist.
+
+        Supports a special '*' key in the blacklist YAML file for
+        global forbidden genres.
+
+        Example:
+            "Artist Name":
+              - "pop"
+            "*":
+              - "spoken word"
+        """
+        if not self.blacklist:
+            return False
+
+        forbidden = set()
+        # Add global forbidden genres
+        if "*" in self.blacklist:
+            forbidden.update(g.lower() for g in self.blacklist["*"] or [])
+        # Add artist-specific forbidden genres
+        if artist:
+            for bl_artist, blocked_genres in self.blacklist.items():
+                if bl_artist != "*" and bl_artist.lower() == artist.lower():
+                    forbidden.update(g.lower() for g in blocked_genres or [])
+
+        return genre.lower() in forbidden
+
+    def _apply_aliases(self, genres):
+        """Apply regex aliases to the genre list."""
+        if not self.aliases or not genres:
+            return genres
+
+        result = genres.copy()
+        for alias_pair in self.aliases:
+            for pattern, replacement in alias_pair.items():
+                result = [
+                    re.sub(pattern, replacement, genre, flags=re.IGNORECASE)
+                    for genre in result
+                ]
+        return result
 
     # Cached last.fm entity lookups.
 
