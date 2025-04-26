@@ -23,6 +23,7 @@ https://gist.github.com/1241307
 """
 
 import codecs
+import configparser
 import os
 import re
 import traceback
@@ -87,6 +88,7 @@ def find_parents(candidate, branches):
 
 WHITELIST = os.path.join(os.path.dirname(__file__), "genres.txt")
 C14N_TREE = os.path.join(os.path.dirname(__file__), "genres-tree.yaml")
+ALIASES = os.path.join(os.path.dirname(__file__), "aliases.ini")
 
 
 class LastGenrePlugin(plugins.BeetsPlugin):
@@ -109,6 +111,7 @@ class LastGenrePlugin(plugins.BeetsPlugin):
                 "title_case": True,
                 "extended_debug": False,
                 "blacklist": False,
+                "aliases": True,  # True for default aliases file
             }
         )
         self.setup()
@@ -122,6 +125,7 @@ class LastGenrePlugin(plugins.BeetsPlugin):
         self.whitelist = self._load_whitelist()
         self.c14n_branches, self.canonicalize = self._load_c14n_tree()
         self.blacklist = self._load_blacklist()
+        self.aliases = self._load_aliases()
 
     def _load_whitelist(self):
         whitelist = set()
@@ -230,6 +234,32 @@ class LastGenrePlugin(plugins.BeetsPlugin):
                     )
             compiled_blacklist[artist] = compiled_patterns
         return compiled_blacklist
+
+    def _load_aliases(self):
+        """Load genre aliases from a configured file path or the default aliases file."""
+        aliases = []
+        aliases_filename = self.config["aliases"].get()
+        if aliases_filename in (
+            True,
+            "",
+        ):  # Indicates the default aliases file.
+            aliases_filename = ALIASES
+        if aliases_filename:
+            self._log.debug("Loading genre aliases file {0}", aliases_filename)
+            aliases_filename = normpath(aliases_filename)
+            try:
+                config_parser = configparser.ConfigParser()
+                config_parser.read(aliases_filename, encoding="utf-8")
+                for section in config_parser.sections():
+                    aliases.extend(
+                        {pattern: replacement}
+                        for pattern, replacement in config_parser[
+                            section
+                        ].items()
+                    )
+            except Exception as exc:
+                self._log.error("Error loading aliases file: {0}", exc)
+        return aliases
 
     @property
     def sources(self) -> tuple[str, ...]:
@@ -340,6 +370,8 @@ class LastGenrePlugin(plugins.BeetsPlugin):
         """Filter list of genres, only keep valid and not forbidden."""
         if not genres:
             return []
+        # Apply aliases before filtering
+        genres = self._apply_aliases(genres)
         return [
             x
             for x in genres
@@ -381,6 +413,38 @@ class LastGenrePlugin(plugins.BeetsPlugin):
                         return True
 
         return False
+
+    def _apply_aliases(self, genres):
+        """Apply regex aliases to the genre list.
+
+        For each genre, apply only the first matching alias pattern.
+        """
+        if not self.aliases or not genres:
+            return genres
+
+        result = []
+        for genre in genres:
+            replaced = genre
+            for alias_pair in self.aliases:
+                for pattern, replacement in alias_pair.items():
+                    try:
+                        new_genre = re.sub(
+                            pattern, replacement, replaced, flags=re.IGNORECASE
+                        )
+                        if new_genre != replaced:
+                            replaced = new_genre
+                            break  # Stop after first match
+                    except re.error as exc:
+                        self._log.error(
+                            "Regex error in pattern '{0}': {1}", pattern, exc
+                        )
+                else:
+                    continue
+                break  # Stop after first alias_pair match
+            result.append(replaced)
+        if self.config["extended_debug"]:
+            self._log.debug("Genres after applying aliases: {0}", result)
+        return result
 
     # Cached last.fm entity lookups.
 
