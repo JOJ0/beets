@@ -22,6 +22,8 @@ The scraper script used is available here:
 https://gist.github.com/1241307
 """
 
+import codecs
+import configparser
 import os
 import re
 import traceback
@@ -36,7 +38,7 @@ import yaml
 from beets import config, library, plugins, ui
 from beets.library import Album, Item
 from beets.ui import UserError
-from beets.util import plurality, unique_list
+from beets.util import normpath, plurality, unique_list
 
 LASTFM = pylast.LastFMNetwork(api_key=plugins.LASTFM_KEY)
 
@@ -144,6 +146,7 @@ def log_and_pretend(apply_func):
 
 WHITELIST = os.path.join(os.path.dirname(__file__), "genres.txt")
 C14N_TREE = os.path.join(os.path.dirname(__file__), "genres-tree.yaml")
+ALIASES = os.path.join(os.path.dirname(__file__), "aliases.ini")
 
 
 class LastGenrePlugin(plugins.BeetsPlugin):
@@ -166,6 +169,7 @@ class LastGenrePlugin(plugins.BeetsPlugin):
                 "title_case": True,
                 "extended_debug": False,
                 "pretend": False,
+                "aliases": True,
                 "blacklist": False,
                 "artist_separators": DEFAULT_ARTIST_SEPARATORS,
             }
@@ -180,6 +184,7 @@ class LastGenrePlugin(plugins.BeetsPlugin):
         self._genre_cache = {}
         self.whitelist = self._load_whitelist()
         self.c14n_branches, self.canonicalize = self._load_c14n_tree()
+        self.aliases = self._load_aliases()
         self.blacklist = self._load_blacklist()
 
     def _debug_extended(self, msg, *args, **kwargs):
@@ -298,6 +303,35 @@ class LastGenrePlugin(plugins.BeetsPlugin):
                     )
             compiled_blacklist[artist] = compiled_patterns
         return compiled_blacklist
+
+    def _load_aliases(self) -> list[str]:
+        """Load configured aliases for a list of tags."""
+        aliases = []
+        aliases_filename = self.config["aliases"].get()
+        if aliases_filename in (
+            True,
+            "",
+            None,
+        ):  # Indicates the default aliases file.
+            aliases_filename = ALIASES
+        if aliases_filename:
+            aliases_filename = normpath(aliases_filename)
+            try:
+                config_parser = configparser.ConfigParser()
+                config_parser.read(aliases_filename, encoding="utf-8")
+                for section in config_parser.sections():
+                    aliases.extend(
+                        {pattern: replacement}
+                        for pattern, replacement in config_parser[
+                            section
+                        ].items()
+                    )
+                self._log.debug(
+                    "Loaded genre aliases from {0}", aliases_filename
+                )
+            except Exception as exc:
+                self._log.error("Error loading aliases file: {0}", exc)
+        return aliases
 
     @property
     def sources(self) -> tuple[str, ...]:
@@ -441,6 +475,25 @@ class LastGenrePlugin(plugins.BeetsPlugin):
 
         return False
 
+    def _apply_aliases(self, genres):
+        """Apply regex aliases to the genre list."""
+        if not self.aliases or not genres:
+            return genres
+
+        result = genres.copy()
+        for alias_pair in self.aliases:
+            for pattern, replacement in alias_pair.items():
+                try:
+                    result = [
+                        re.sub(pattern, replacement, genre, flags=re.IGNORECASE)
+                        for genre in result
+                    ]
+                except re.error as exc:
+                    self._log.error(
+                        "Regex error in pattern '{0}': {1}", pattern, exc
+                    )
+        return result
+
     # Cached last.fm entity lookups.
 
     def _last_lookup(self, entity, method, *args):
@@ -463,6 +516,9 @@ class LastGenrePlugin(plugins.BeetsPlugin):
 
         genre = self._genre_cache[key]
         self._debug_extended("last.fm (unfiltered) {} tags: {}", entity, genre)
+
+        genre = self._apply_aliases(genre)
+        self._debug_extended("last.fm (aliased) {} tags: {}", entity, genre)
 
         # Filter forbidden genres
         if genre and len(args) >= 1:
@@ -550,7 +606,15 @@ class LastGenrePlugin(plugins.BeetsPlugin):
 
         # Filter out empty strings and strip whitespace
         final_keep = [g.strip() for g in item_genre if g.strip()]
-        self._log.debug(f"Existing genres gathered: {final_keep}")
+        if self.config["extended_debug"]:
+            self._log.debug("Existing genres gathered (split): {}", final_keep)
+
+        final_keep = self._apply_aliases(final_keep)
+        if self.config["extended_debug"]:
+            self._log.debug(
+                "Existing genres gathered (aliased): {}", final_keep
+            )
+
         return final_keep
 
     def _combine_resolve_and_log(
