@@ -1,0 +1,26 @@
+# Genre aliases using regular expressions
+# Format: Each item is a mapping of pattern -> replacement
+
+# electronic music, electronicmusic
+- '(?i)electronic music': 'Electronic'
+- '(?i)electronicmusic': 'Electronic'
+
+# alt rock, alt-rock, alternative rock, alternative
+- '(?i)alt[\s-]?rock': 'Alternative Rock'
+- '(?i)alternative rock': 'Alternative Rock'
+- '(?i)alternative': 'Alternative Rock'
+
+# hip hop, hip-hop, hiphop, rap
+- '(?i)hip[\s-]?hop': 'Hip Hop'
+- '(?i)hiphop': 'Hip Hop'
+- '(?i)rap': 'Hip Hop'
+
+# r&b, r & b, rhythm and blues
+- '(?i)r\s*&\s*b': 'R&B'
+- '(?i)rhythm and blues': 'R&B'
+
+# drum & bass, drum and bass, drum n bass, drum'n'bass, d&b, dnb
+- '(?i)drum[\s]*(?:&|and|n)[\s]*bass': 'Drum And Bass'
+# - '(?i)drum\'n\'bass': 'Drum And Bass'
+- '(?i)d(?:rum)?[&n]b': 'Drum And Bass'
+- '(?i)dnb': 'Drum And Bass'
