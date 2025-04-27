@@ -339,6 +339,25 @@ class LastGenrePlugin(plugins.BeetsPlugin):
 
         return genre.lower() in forbidden
 
+    def _apply_aliases(self, genres):
+        """Apply regex aliases to the genre list."""
+        if not self.aliases or not genres:
+            return genres
+
+        result = genres.copy()
+        for alias_pair in self.aliases:
+            for pattern, replacement in alias_pair.items():
+                try:
+                    result = [
+                        re.sub(pattern, replacement, genre, flags=re.IGNORECASE)
+                        for genre in result
+                    ]
+                except re.error as exc:
+                    self._log.error(
+                        "Regex error in pattern '{0}': {1}", pattern, exc
+                    )
+        return result
+
     # Cached last.fm entity lookups.
 
     def _last_lookup(self, entity, method, *args):
