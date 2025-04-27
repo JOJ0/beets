@@ -23,6 +23,7 @@ https://gist.github.com/1241307
 """
 
 import codecs
+import configparser
 import os
 import re
 import traceback
@@ -85,7 +86,7 @@ def find_parents(candidate, branches):
 
 WHITELIST = os.path.join(os.path.dirname(__file__), "genres.txt")
 C14N_TREE = os.path.join(os.path.dirname(__file__), "genres-tree.yaml")
-ALIASES = os.path.join(os.path.dirname(__file__), "aliases.yaml")
+ALIASES = os.path.join(os.path.dirname(__file__), "aliases.ini")
 
 
 class LastGenrePlugin(plugins.BeetsPlugin):
@@ -108,7 +109,7 @@ class LastGenrePlugin(plugins.BeetsPlugin):
                 "title_case": True,
                 "extended_debug": False,
                 "blacklist": None,  # Path to YAML blacklist file
-                "aliases": None,  # Path to YAML aliases file
+                "aliases": None,  # Path to INI aliases file
             }
         )
         self.setup()
@@ -173,8 +174,13 @@ class LastGenrePlugin(plugins.BeetsPlugin):
         if aliases_filename:
             aliases_filename = normpath(aliases_filename)
             try:
-                with codecs.open(aliases_filename, "r", encoding="utf-8") as f:
-                    self.aliases = yaml.safe_load(f)
+                config_parser = configparser.ConfigParser()
+                config_parser.read(aliases_filename, encoding="utf-8")
+                for section in config_parser.sections():
+                    self.aliases.extend(
+                        {pattern: replacement}
+                        for pattern, replacement in config_parser[section].items()
+                    )
                 self._log.debug(
                     "Loaded genre aliases from {0}", aliases_filename
                 )
