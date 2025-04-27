@@ -352,10 +352,15 @@ class LastGenrePlugin(plugins.BeetsPlugin):
         result = genres.copy()
         for alias_pair in self.aliases:
             for pattern, replacement in alias_pair.items():
-                result = [
-                    re.sub(pattern, replacement, genre, flags=re.IGNORECASE)
-                    for genre in result
-                ]
+                try:
+                    result = [
+                        re.sub(pattern, replacement, genre, flags=re.IGNORECASE)
+                        for genre in result
+                    ]
+                except re.error as exc:
+                    self._log.error(
+                        "Regex error in pattern '{0}': {1}", pattern, exc
+                    )
         return result
 
     # Cached last.fm entity lookups.
