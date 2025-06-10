@@ -325,7 +325,6 @@ class LastGenrePlugin(plugins.BeetsPlugin):
               - "spoken word"
         """
         if not self.blacklist:
-            self._log.debug(f"Genre '{genre}' for artist '{artist}' is not forbidden (no blacklist).")
             return False
 
         forbidden = set()
@@ -338,12 +337,7 @@ class LastGenrePlugin(plugins.BeetsPlugin):
                 if bl_artist != "*" and bl_artist.lower() == artist.lower():
                     forbidden.update(g.lower() for g in blocked_genres or [])
 
-        is_forbidden = genre.lower() in forbidden
-        if is_forbidden:
-            self._log.warning(f"Genre '{genre}' is forbidden for artist '{artist}'.")
-        else:
-            self._log.warning(f"Genre '{genre}' is NOT forbidden for artist '{artist}'.")
-        return is_forbidden
+        return genre.lower() in forbidden
 
     def _apply_aliases(self, genres):
         """Apply regex aliases to the genre list."""
