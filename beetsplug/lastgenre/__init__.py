@@ -293,11 +293,14 @@ class LastGenrePlugin(plugins.BeetsPlugin):
         min_weight = self.config["min_weight"].get(int)
         return self._tags_for(lastfm_obj, min_weight)
 
-    def _filter_valid_genres(self, genres: list[str]) -> list[str]:
-        """Filter list of genres, only keep valid."""
+    def _filter_valid_genres(self, genres: list[str], artist: str = None) -> list[str]:
+        """Filter list of genres, only keep valid and not forbidden."""
         if not genres:
             return []
-        return [x for x in genres if self._is_valid(x)]
+        return [
+            x for x in genres
+            if self._is_valid(x) and not self._is_forbidden(x, artist or "")
+        ]
 
     def _is_valid(self, genre: str) -> bool:
         """Check if the genre is valid.
