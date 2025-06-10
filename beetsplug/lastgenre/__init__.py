@@ -388,25 +388,29 @@ class LastGenrePlugin(plugins.BeetsPlugin):
         return self._filter_valid_genres(
             self._last_lookup(
                 "album", LASTFM.get_album, obj.albumartist, obj.album
-            )
+            ),
+            artist=obj.albumartist
         )
 
     def fetch_album_artist_genre(self, obj):
         """Return the album artist genre for this Item or Album."""
         return self._filter_valid_genres(
-            self._last_lookup("artist", LASTFM.get_artist, obj.albumartist)
+            self._last_lookup("artist", LASTFM.get_artist, obj.albumartist),
+            artist=obj.albumartist
         )
 
     def fetch_artist_genre(self, item):
         """Returns the track artist genre for this Item."""
         return self._filter_valid_genres(
-            self._last_lookup("artist", LASTFM.get_artist, item.artist)
+            self._last_lookup("artist", LASTFM.get_artist, item.artist),
+            artist=item.artist
         )
 
     def fetch_track_genre(self, obj):
         """Returns the track genre for this Item."""
         return self._filter_valid_genres(
-            self._last_lookup("track", LASTFM.get_track, obj.artist, obj.title)
+            self._last_lookup("track", LASTFM.get_track, obj.artist, obj.title),
+            artist=obj.artist
         )
 
     # Main processing: _get_genre() and helpers.
