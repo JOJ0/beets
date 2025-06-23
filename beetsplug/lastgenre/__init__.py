@@ -340,7 +340,12 @@ class LastGenrePlugin(plugins.BeetsPlugin):
         return genre.lower() in forbidden
 
     def _apply_aliases(self, genres):
-        """Apply regex aliases to the genre list."""
+        """Apply regex aliases to the genre list.
+
+        Each alias is a dictionary with regex patterns as keys and their replacements
+        strings as values. Regex patterns can be supplied without worrying about case
+        sensitivity.
+        """
         if not self.aliases or not genres:
             return genres
 
