@@ -26,6 +26,7 @@ import codecs
 import configparser
 import os
 import re
+import threading
 import traceback
 from typing import Union
 
@@ -47,6 +48,8 @@ PYLAST_EXCEPTIONS = (
 REPLACE = {
     "\u2010": "-",
 }
+
+GENRE_LOCKS_FILE = os.path.join(os.path.dirname(__file__), "genre_locks.yaml")
 
 
 # Canonicalization tree processing.
@@ -92,6 +95,8 @@ ALIASES = os.path.join(os.path.dirname(__file__), "aliases.ini")
 class LastGenrePlugin(plugins.BeetsPlugin):
     def __init__(self):
         super().__init__()
+        self._lock_mutex = threading.Lock()
+        self._load_genre_locks()
 
         self.config.add(
             {
@@ -450,6 +455,46 @@ class LastGenrePlugin(plugins.BeetsPlugin):
         combined = old + new
         return self._resolve_genres(combined)
 
+    def _is_locked(self, obj):
+        if isinstance(obj, library.Item):
+            return str(obj.id) in self.genre_locks["tracks"]
+        elif isinstance(obj, library.Album):
+            return str(obj.id) in self.genre_locks["albums"]
+        return False
+
+    def _get_locked_genre(self, obj):
+        if isinstance(obj, library.Item):
+            return self.genre_locks["tracks"].get(str(obj.id))
+        elif isinstance(obj, library.Album):
+            return self.genre_locks["albums"].get(str(obj.id))
+        return None
+
+    def _set_lock(self, obj, genre):
+        if isinstance(obj, library.Item):
+            self.genre_locks["tracks"][str(obj.id)] = genre
+        elif isinstance(obj, library.Album):
+            self.genre_locks["albums"][str(obj.id)] = genre
+        self._save_genre_locks()
+
+    def _load_genre_locks(self):
+        self.genre_locks = {"albums": {}, "tracks": {}}
+        if os.path.exists(GENRE_LOCKS_FILE):
+            try:
+                with open(GENRE_LOCKS_FILE, "r", encoding="utf-8") as f:
+                    data = yaml.safe_load(f) or {}
+                    self.genre_locks["albums"] = data.get("albums", {})
+                    self.genre_locks["tracks"] = data.get("tracks", {})
+            except Exception as exc:
+                self._log.error("Error loading genre locks: {0}", exc)
+
+    def _save_genre_locks(self):
+        with self._lock_mutex:
+            try:
+                with open(GENRE_LOCKS_FILE, "w", encoding="utf-8") as f:
+                    yaml.safe_dump(self.genre_locks, f)
+            except Exception as exc:
+                self._log.error("Error saving genre locks: {0}", exc)
+
     def _get_genre(
         self, obj: Union[Album, Item]
     ) -> tuple[Union[str, None], ...]:
@@ -471,6 +516,10 @@ class LastGenrePlugin(plugins.BeetsPlugin):
         applied, while "artist, any" means only new last.fm genres are included
         and the whitelist feature was disabled.
         """
+        if hasattr(self, '_is_locked') and self._is_locked(obj):
+            locked_genre = self._get_locked_genre(obj)
+            return locked_genre, "locked"
+
         keep_genres = []
         new_genres = []
         label = ""
@@ -612,12 +661,37 @@ class LastGenrePlugin(plugins.BeetsPlugin):
             dest="extended_debug",
             help="extended last.fm debug logging",
         )
+        lastgenre_cmd.parser.add_option(
+            "--lock",
+            dest="lock",
+            action="store_true",
+            help="lock the current genre for the matched albums/tracks",
+        )
         lastgenre_cmd.parser.set_defaults(album=True)
 
         def lastgenre_func(lib, opts, args):
             write = ui.should_write()
             self.config.set_args(opts)
-
+            if hasattr(opts, 'lock') and opts.lock:
+                if opts.album:
+                    for album in lib.albums(ui.decargs(args)):
+                        genre = album.genre or self._get_genre(album)[0]
+                        self._set_lock(album, genre)
+                        self._log.info(
+                            'Locked genre for album "{0.album}" (id={0.id}): {1}',
+                            album,
+                            genre,
+                        )
+                else:
+                    for item in lib.items(ui.decargs(args)):
+                        genre = item.genre or self._get_genre(item)[0]
+                        self._set_lock(item, genre)
+                        self._log.info(
+                            'Locked genre for track "{0.title}" (id={0.id}): {1}',
+                            item,
+                            genre,
+                        )
+                return
             if opts.album:
                 # Fetch genres for whole albums
                 for album in lib.albums(ui.decargs(args)):
