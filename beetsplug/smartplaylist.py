@@ -186,14 +186,16 @@ class SmartPlaylistPlugin(BeetsPlugin):
                     qs = playlist.get(key)
                     if qs is None:
                         query_and_sort = None, None
+                    elif isinstance(qs, (dict, list)):
+                        flat_qs = flatten_query(qs)
+                        query_and_sort = parse_query_string(flat_qs, model_cls)
                     elif isinstance(qs, str):
                         query_and_sort = parse_query_string(qs, model_cls)
                     elif len(qs) == 1:
                         query_and_sort = parse_query_string(qs[0], model_cls)
                     else:
-                        # multiple queries and sorts
                         queries, sorts = zip(
-                            *(parse_query_string(q, model_cls) for q in qs)
+                            *(parse_query_string(flatten_query(q), model_cls) for q in qs)
                         )
                         query = OrQuery(queries)
                         final_sorts = []
@@ -347,6 +349,24 @@ class SmartPlaylistPlugin(BeetsPlugin):
             self._log.info(
                 "{0} playlists updated", len(self._matched_playlists)
             )
+
+
+def flatten_query(q):
+    """
+    Converts a YAML mapping or sequence to a single query string.
+    - If q is a dict, join key:value pairs (regex keys like field:: are handled).
+    - If q is a list, join each element (recursively flatten if needed).
+    - If q is a string, return as is.
+    """
+    if isinstance(q, dict):
+        return " ".join(
+            f"{k}{v}" if str(k).endswith("::") or str(k).endswith("+") else f"{k}:{v}"
+            for k, v in q.items()
+        )
+    elif isinstance(q, list):
+        return " ".join(flatten_query(x) for x in q)
+    else:
+        return str(q)
 
 
 class PlaylistItem:
