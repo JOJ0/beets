@@ -49,8 +49,6 @@ REPLACE = {
     "\u2010": "-",
 }
 
-GENRE_LOCKS_FILE = os.path.join(os.path.dirname(__file__), "genre_locks.yaml")
-
 
 # Canonicalization tree processing.
 
@@ -96,8 +94,6 @@ class LastGenrePlugin(plugins.BeetsPlugin):
     def __init__(self):
         super().__init__()
         self._lock_mutex = threading.Lock()
-        self._load_genre_locks()
-
         self.config.add(
             {
                 "whitelist": True,
@@ -125,6 +121,11 @@ class LastGenrePlugin(plugins.BeetsPlugin):
             self.import_stages = [self.imported]
 
         self._genre_cache = {}
+
+        # Place genre_locks.yaml in the beets config folder
+        global GENRE_LOCKS_FILE
+        GENRE_LOCKS_FILE = os.path.join(config.config_dir(), "genre_locks.yaml")
+        self._load_genre_locks()
 
         # Read the whitelist file if enabled.
         self.whitelist = set()
