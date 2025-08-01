@@ -410,6 +410,18 @@ class LastGenrePlugin(plugins.BeetsPlugin):
             artist=obj.albumartist
         )
 
+    def fetch_split_album_artist_genre(self, split_artist):
+        """Return the artist genre for any passed artist name.
+
+        Used for multi-artist albums where the artist name may not match
+        the album artist exactly and a split by separator is needed to get a last.fm
+        result.
+        """
+        return self._filter_valid_genres(
+            self._last_lookup("artist", LASTFM.get_artist, split_artist),
+            artist=split_artist
+        )
+
     def fetch_artist_genre(self, item):
         """Returns the track artist genre for this Item."""
         return self._filter_valid_genres(
@@ -557,6 +569,37 @@ class LastGenrePlugin(plugins.BeetsPlugin):
             elif obj.albumartist != config["va_name"].as_str():
                 new_genres = self.fetch_album_artist_genre(obj)
                 label = "album artist"
+                if not new_genres:
+                    self._log.debug(
+                        'No album artist genre found for "{0.albumartist}"',
+                        obj,
+                    )
+                    separators = [
+                        self.config["separator"].get(),
+                        " feat. ",
+                        " & ",
+                        " vs. ",
+                        " x ",
+                    ]
+                    if any(separator in obj.albumartist for separator in separators):
+                        self._log.debug(
+                            "Found separators in album artist - splitting..."
+                        )
+                        # FIXME for now only use configured separator
+                        albumartists = obj.albumartist.split(
+                            self.config["separator"].get()
+                        )
+                        for albumartist in albumartists:
+                            self._log.debug(
+                                'Fetching multi-artist album genre for "{0}"',
+                                albumartist,
+                            )
+                            new_genres = self.fetch_split_album_artist_genre(
+                                albumartist
+                            )
+                            if new_genres:
+                                label = "album artist (split)"
+                                break
             else:
                 # For "Various Artists", pick the most popular track genre.
                 item_genres = []
