@@ -251,9 +251,11 @@ class LastGenrePlugin(plugins.BeetsPlugin):
         """
         if not tags:
             return []
+        self._log.debug(f"In resolve genres we got: {tags}")
 
         # Apply aliases early in the process
         tags = self._apply_aliases(tags)
+        self._log.debug(f"After applying aliases: {tags}")
 
         count = self.config["count"].get(int)
         if self.canonicalize:
@@ -302,6 +304,7 @@ class LastGenrePlugin(plugins.BeetsPlugin):
     def _filter_valid_genres(self, genres: list[str], artist: str = None) -> list[str]:
         """Filter list of genres, only keep valid and not forbidden."""
         if not genres:
+            self._log.debug("No genres provided for filtering in _filter_valid_genres.")
             return []
         return [
             x for x in genres
@@ -466,7 +469,9 @@ class LastGenrePlugin(plugins.BeetsPlugin):
         self._log.debug(f"valid last.fm tags: {new}")
         self._log.debug(f"existing genres taken into account: {old}")
         combined = old + new
-        return self._resolve_genres(combined)
+        resolved = self._resolve_genres(combined)
+        self._log.debug(f"resolved genres: {resolved}")
+        return resolved
 
     def _is_locked(self, obj):
         if isinstance(obj, library.Item):
