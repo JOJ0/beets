@@ -27,7 +27,7 @@ import configparser
 import os
 import re
 import traceback
-from collections import defaultdict
+from collections import Counter, defaultdict
 from typing import Union
 
 import pylast
@@ -618,13 +618,17 @@ class LastGenrePlugin(plugins.BeetsPlugin):
                     if item_genre:
                         item_genres += item_genre
                 if item_genres:
-                    most_popular, rank = plurality(item_genres)
-                    new_genres = [most_popular]
-                    label = "most popular track"
+                    # Get a ranked list of genres by popularity
+                    genre_counts = Counter(item_genres)
+                    top_n = 2  # Change this to your desired number
+                    most_popular_genres = [
+                        g for g, _ in genre_counts.most_common(top_n)
+                    ]
+                    new_genres = most_popular_genres
+                    label = f"most popular {top_n} track genres"
                     self._log.debug(
-                        'Most popular track genre "{}" ({}) for VA album.',
-                        most_popular,
-                        rank,
+                        'Most popular track genres {} for VA album.',
+                        most_popular_genres,
                     )
 
         # Determine artist context for filtering
