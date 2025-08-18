@@ -299,16 +299,17 @@ class LastGenrePlugin(plugins.BeetsPlugin):
         """Filter, transform, canonicalize, and validate provided genres list.
 
         Processing order has been optimized to ensure proper canonicalization:
-        1. Early blacklist filtering (artist-specific, performance optimization)
-        2. Alias transformation (transforms raw Last.fm tags to canonical forms)
+        1. Alias transformation (transforms raw Last.fm tags to canonical forms)
+        2. Blacklist filtering (artist-specific, works on canonical forms)
         3. Canonicalization (if enabled, incorporates parent genres from tree)
         4. Final whitelist validation (ensures all final genres are valid)
 
         - Returns an empty list if the input tags list is empty.
-        - First applies blacklist filtering to remove artist-specific forbidden
-          genres early, preventing unnecessary processing.
-        - Then applies alias transformations to convert raw Last.fm tags like
-          "electronic music" to canonical forms like "electronic".
+        - First applies alias transformations to convert raw Last.fm tags like
+          "electronic music" or misspelled "electronik" to canonical forms
+          like "electronic". This ensures blacklist rules work on clean genres.
+        - Then applies blacklist filtering to remove artist-specific forbidden
+          genres, working on the canonical genre names.
         - If canonicalization is enabled, it extends the list by incorporating
           parent genres from the canonicalization tree. When a whitelist is set,
           only parent tags that pass a validity check (_is_valid) are included;
@@ -336,17 +337,17 @@ class LastGenrePlugin(plugins.BeetsPlugin):
         if not tags:
             return []
 
-        # Phase 1: Early blacklist filtering (artist-specific, performance)
+        # Phase 1: Alias transformation (transform raw Last.fm tags first)
+        # This ensures blacklist filtering works on canonical genre names
+        tags = self._apply_aliases(tags)
+
+        # Phase 2: Blacklist filtering (artist-specific, on canonical forms)
         if self.blacklist:
             tags = [t for t in tags if not self._is_forbidden(t, artist)]
             if not tags:
                 return []
 
-        # Phase 2: Transformation
-        # Apply aliases first (transform raw Last.fm tags to canonical forms)
-        tags = self._apply_aliases(tags)
-
-        # Then canonicalization (if enabled)
+        # Phase 3: Canonicalization (if enabled)
         count = self.config["count"].get(int)
         if self.canonicalize:
             # Extend the list to consider tags parents in the c14n tree
@@ -373,7 +374,7 @@ class LastGenrePlugin(plugins.BeetsPlugin):
                     break
             tags = tags_all
 
-        # Phase 3: Final validation
+        # Phase 4: Final validation
         tags = unique_list(tags)
 
         # Sort the tags by specificity.
