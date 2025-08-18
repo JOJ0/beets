@@ -295,10 +295,20 @@ class LastGenrePlugin(plugins.BeetsPlugin):
         depth_tag_pairs.sort(reverse=True)
         return [p[1] for p in depth_tag_pairs]
 
-    def _resolve_genres(self, tags: list[str]) -> list[str]:
-        """Filter, deduplicate, sort, canonicalize provided genres list.
+    def _resolve_genres(self, tags: list[str], artist: str = "") -> list[str]:
+        """Filter, transform, canonicalize, and validate provided genres list.
+
+        Processing order has been optimized to ensure proper canonicalization:
+        1. Early blacklist filtering (artist-specific, performance optimization)
+        2. Alias transformation (transforms raw Last.fm tags to canonical forms)
+        3. Canonicalization (if enabled, incorporates parent genres from tree)
+        4. Final whitelist validation (ensures all final genres are valid)
 
         - Returns an empty list if the input tags list is empty.
+        - First applies blacklist filtering to remove artist-specific forbidden
+          genres early, preventing unnecessary processing.
+        - Then applies alias transformations to convert raw Last.fm tags like
+          "electronic music" to canonical forms like "electronic".
         - If canonicalization is enabled, it extends the list by incorporating
           parent genres from the canonicalization tree. When a whitelist is set,
           only parent tags that pass a validity check (_is_valid) are included;
@@ -310,16 +320,33 @@ class LastGenrePlugin(plugins.BeetsPlugin):
         - Optionally, if the 'prefer_specific' configuration is enabled, the
           list is sorted by the specificity (depth in the canonicalization tree)
           of the genres.
-        - The method then filters the tag list, ensuring that only valid
-          genres (those that pass the _is_valid method) are kept. If a
-          whitelist is set, only genres in the whitelist are considered valid
-          (which may even result in no genres at all being retained).
-        - Finally, the filtered list of genres, limited to
-          the configured count is returned.
+        - Finally applies whitelist filtering to ensure that only valid
+          genres are kept. If a whitelist is set, only genres in the whitelist
+          are considered valid (which may even result in no genres at all being
+          retained).
+        - Returns the filtered list of genres, limited to the configured count.
+
+        Args:
+            tags: List of genre strings to process
+            artist: Artist name for blacklist filtering context (optional)
+
+        Returns:
+            Filtered and processed list of genre strings
         """
         if not tags:
             return []
 
+        # Phase 1: Early blacklist filtering (artist-specific, performance)
+        if self.blacklist:
+            tags = [t for t in tags if not self._is_forbidden(t, artist)]
+            if not tags:
+                return []
+
+        # Phase 2: Transformation
+        # Apply aliases first (transform raw Last.fm tags to canonical forms)
+        tags = self._apply_aliases(tags)
+
+        # Then canonicalization (if enabled)
         count = self.config["count"].get(int)
         if self.canonicalize:
             # Extend the list to consider tags parents in the c14n tree
@@ -346,16 +373,16 @@ class LastGenrePlugin(plugins.BeetsPlugin):
                     break
             tags = tags_all
 
+        # Phase 3: Final validation
         tags = unique_list(tags)
 
         # Sort the tags by specificity.
         if self.config["prefer_specific"]:
             tags = self._sort_by_depth(tags)
 
-        # c14n only adds allowed genres but we may have had forbidden genres in
-        # the original tags list
-        valid_tags = self._filter_valid_genres(tags)
-        return valid_tags[: self.config["count"].get(int)]
+        # Final whitelist filtering (aliases and canonicalization already applied)
+        valid_tags = [t for t in tags if self._is_valid(t)]
+        return valid_tags[:count]
 
     def fetch_genre(self, lastfm_obj):
         """Return the genre for a pylast entity or None if no suitable genre
@@ -363,20 +390,6 @@ class LastGenrePlugin(plugins.BeetsPlugin):
         """
         min_weight = self.config["min_weight"].get(int)
         return self._tags_for(lastfm_obj, min_weight)
-
-    def _filter_valid_genres(
-        self, genres: list[str], artist: str = ""
-    ) -> list[str]:
-        """Filter list of genres, only keep valid and not forbidden."""
-        if not genres:
-            return []
-        # Apply aliases before filtering
-        genres = self._apply_aliases(genres)
-        return [
-            x
-            for x in genres
-            if self._is_valid(x) and not self._is_forbidden(x, artist)
-        ]
 
     def _is_valid(self, genre: str) -> bool:
         """Check if the genre is valid.
@@ -472,46 +485,36 @@ class LastGenrePlugin(plugins.BeetsPlugin):
         return genre
 
     def fetch_album_genre(self, obj):
-        """Return the album genre for this Item or Album."""
-        return self._filter_valid_genres(
-            self._last_lookup(
-                "album", LASTFM.get_album, obj.albumartist, obj.album
-            ),
-            artist=obj.albumartist,
+        """Return raw album genres from Last.fm for this Item or Album."""
+        raw_genres = self._last_lookup(
+            "album", LASTFM.get_album, obj.albumartist, obj.album
         )
+        return raw_genres or []
 
     def fetch_album_artist_genre(self, obj):
-        """Return the album artist genre for this Item or Album."""
-        return self._filter_valid_genres(
-            self._last_lookup("artist", LASTFM.get_artist, obj.albumartist),
-            artist=obj.albumartist,
-        )
+        """Return raw album artist genres from Last.fm for this Item or Album."""
+        raw_genres = self._last_lookup("artist", LASTFM.get_artist, obj.albumartist)
+        return raw_genres or []
 
     def fetch_split_album_artist_genre(self, split_artist):
-        """Return the artist genre for any passed artist name.
+        """Return raw artist genres from Last.fm for any passed artist name.
 
         Used for multi-artist albums where the artist name may not match
         the album artist exactly and a split by separator is needed to get a last.fm
         result.
         """
-        return self._filter_valid_genres(
-            self._last_lookup("artist", LASTFM.get_artist, split_artist),
-            artist=split_artist,
-        )
+        raw_genres = self._last_lookup("artist", LASTFM.get_artist, split_artist)
+        return raw_genres or []
 
     def fetch_artist_genre(self, item):
-        """Returns the track artist genre for this Item."""
-        return self._filter_valid_genres(
-            self._last_lookup("artist", LASTFM.get_artist, item.artist),
-            artist=item.artist,
-        )
+        """Returns raw track artist genres from Last.fm for this Item."""
+        raw_genres = self._last_lookup("artist", LASTFM.get_artist, item.artist)
+        return raw_genres or []
 
     def fetch_track_genre(self, obj):
-        """Returns the track genre for this Item."""
-        return self._filter_valid_genres(
-            self._last_lookup("track", LASTFM.get_track, obj.artist, obj.title),
-            artist=obj.artist,
-        )
+        """Returns raw track genres from Last.fm for this Item."""
+        raw_genres = self._last_lookup("track", LASTFM.get_track, obj.artist, obj.title)
+        return raw_genres or []
 
     # Main processing: _get_genre() and helpers.
 
@@ -559,13 +562,13 @@ class LastGenrePlugin(plugins.BeetsPlugin):
         return final_keep
 
     def _combine_resolve_and_log(
-        self, old: list[str], new: list[str]
+        self, old: list[str], new: list[str], artist: str = ""
     ) -> list[str]:
         """Combine old and new genres and process via _resolve_genres."""
-        self._log.debug(f"valid last.fm tags: {new}")
+        self._log.debug(f"raw last.fm tags: {new}")
         self._log.debug(f"existing genres taken into account: {old}")
         combined = old + new
-        return self._resolve_genres(combined)
+        return self._resolve_genres(combined, artist=artist)
 
     def _get_genre(
         self, obj: Union[Album, Item]
@@ -690,10 +693,17 @@ class LastGenrePlugin(plugins.BeetsPlugin):
                         most_popular_genres,
                     )
 
+        # Determine artist context for filtering
+        artist_context = ""
+        if isinstance(obj, library.Item):
+            artist_context = obj.artist
+        else:
+            artist_context = obj.albumartist
+
         # Return with a combined or freshly fetched genre list.
         if new_genres:
             resolved_genres = self._combine_resolve_and_log(
-                keep_genres, new_genres
+                keep_genres, new_genres, artist=artist_context
             )
             if resolved_genres:
                 suffix = "whitelist" if self.whitelist else "any"
@@ -704,8 +714,7 @@ class LastGenrePlugin(plugins.BeetsPlugin):
 
         # Nothing found, leave original (split up) genres if configured and valid.
         if keep_genres and self.config["keep_existing"]:
-            valid_keep = self._filter_valid_genres(keep_genres)
-            resolved_keep = self._resolve_genres(valid_keep)
+            resolved_keep = self._resolve_genres(keep_genres, artist=artist_context)
             self._log.debug("Resolved keep genres: {}", resolved_keep)
             return self._format_and_stringify(
                 resolved_keep
