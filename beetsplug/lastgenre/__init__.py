@@ -45,8 +45,20 @@ PYLAST_EXCEPTIONS = (
     pylast.NetworkError,
 )
 
+DEFAULT_ARTIST_SEPARATORS = [
+    "feat.",
+    "featuring",
+    "&",
+    "vs.",
+    "x",
+    "/",
+    "+",
+    "and",
+    "|",
+]
 
-# Canonicalization tree processing.
+
+# Canonicalization tree processing and other helpers.
 
 
 def flatten_tree(elem, path, branches):
@@ -79,6 +91,36 @@ def find_parents(candidate, branches):
     return [candidate]
 
 
+def split_on_separators(text, separators):
+    """Split text on configured separators; returns [text] if none."""
+    # Normalize and drop empty/whitespace-only separators
+    if isinstance(separators, str):
+        seps = [separators]
+    else:
+        seps = list(separators or [])
+    seps = [s for s in seps if isinstance(s, str) and s.strip()]
+    if not seps:
+        return [text]
+
+    # Build patterns: word boundaries for pure alphanumeric, no boundaries for others
+    patterns = []
+    for s in seps:
+        escaped = re.escape(s)
+        if s.replace(" ", "").isalnum():  # treat spaced separators like symbols
+            # Alphanumeric needs word boundaries (like "x", "and")
+            patterns.append(rf"\b{escaped}\b")
+        else:
+            # Symbols like "/", " / " need no boundaries
+            patterns.append(escaped)
+
+    pattern = "|".join(patterns)
+
+    if not re.search(pattern, text, flags=re.IGNORECASE):
+        return [text]
+    parts = re.split(pattern, text, flags=re.IGNORECASE)
+    return [p.strip() for p in parts if p.strip()]
+
+
 # Main plugin logic.
 
 WHITELIST = os.path.join(os.path.dirname(__file__), "genres.txt")
@@ -105,6 +147,7 @@ class LastGenrePlugin(plugins.BeetsPlugin):
                 "title_case": True,
                 "extended_debug": False,
                 "blacklist": False,
+                "artist_separators": DEFAULT_ARTIST_SEPARATORS,
             }
         )
         self.setup()
@@ -426,6 +469,15 @@ class LastGenrePlugin(plugins.BeetsPlugin):
         """Return raw album artist genres from Last.fm for this Item or Album."""
         return self._last_lookup("artist", LASTFM.get_artist, obj.albumartist)
 
+    def fetch_split_album_artist_genre(self, split_artist):
+        """Return the artist genre for any passed artist name.
+
+        Used for multi-artist albums where the artist name may not match
+        the album artist exactly and a split by separator is needed to get a last.fm
+        result.
+        """
+        return self._last_lookup("artist", LASTFM.get_artist, split_artist)
+
     def fetch_artist_genre(self, item):
         """Returns raw track artist genres from Last.fm for this Item."""
         return self._last_lookup("artist", LASTFM.get_artist, item.artist)
@@ -547,6 +599,37 @@ class LastGenrePlugin(plugins.BeetsPlugin):
             elif obj.albumartist != config["va_name"].as_str():
                 new_genres = self.fetch_album_artist_genre(obj)
                 stage_label = "album artist"
+                if not new_genres:
+                    self._debug_extended(
+                        'No album artist genre found for "{0.albumartist}"',
+                        obj,
+                    )
+
+                    # Try multi-valued field first, fallback to separator splitting
+                    albumartists = obj.get(
+                        "albumartists", []
+                    ) or split_on_separators(
+                        obj.albumartist,
+                        self.config["artist_separators"].as_str_seq(),
+                    )
+
+                    split_method = (
+                        "albumartists"
+                        if obj.get("albumartists", [])
+                        else "albumartists sep-split"
+                    )
+
+                    if len(albumartists) > 1:
+                        for albumartist in albumartists:
+                            self._debug_extended(
+                                'Fetching multi-artist album genre for "{0}"',
+                                albumartist,
+                            )
+                            new_genres += self.fetch_split_album_artist_genre(
+                                albumartist
+                            )
+                        if new_genres:
+                            stage_label = f"{split_method}"
             else:
                 # For "Various Artists", pick the most popular track genre.
                 item_genres = []
