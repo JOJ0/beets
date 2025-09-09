@@ -465,12 +465,32 @@ class LastGenrePlugin(plugins.BeetsPlugin):
         are removed."""
         separator = self.config["separator"].get()
         if isinstance(obj, library.Item):
-            item_genre = obj.get("genre", with_album=False).split(separator)
+            genre_string = obj.get("genre", with_album=False)
         else:
-            item_genre = obj.get("genre").split(separator)
+            genre_string = obj.get("genre")
 
-        # Filter out empty strings
-        return [g for g in item_genre if g]
+        # Check if any separators are present before attempting to split
+        if separator in genre_string:
+            item_genre = genre_string.split(separator)
+        else:
+            # Check for alternative separators
+            split_separator = None
+            # Intentionally keep whitespace (trim later)
+            for alt_sep in [";", "/", ","]:
+                if alt_sep in genre_string:
+                    split_separator = alt_sep
+                    break
+
+            if split_separator:
+                item_genre = genre_string.split(split_separator)
+            else:
+                # No separators found, return an empty or single genre list
+                item_genre = [genre_string] if genre_string else []
+
+        # Filter out empty strings and strip whitespace
+        final_keep = [g.strip() for g in item_genre if g.strip()]
+        self._log.debug(f"Existing genres gathered: {final_keep}")
+        return final_keep
 
     def _combine_resolve_and_log(
         self, old: list[str], new: list[str], artist: str = None
