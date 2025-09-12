@@ -99,13 +99,9 @@ def find_parents(candidate, branches):
 
 
 def split_on_separators(text, separators):
-    """Split text on configured separators; returns [text] if none."""
-    # Normalize and drop empty/whitespace-only separators
-    if isinstance(separators, str):
-        seps = [separators]
-    else:
-        seps = list(separators or [])
-    seps = [s for s in seps if isinstance(s, str) and s.strip()]
+    """Split text on configured separators; returns [text] if none found."""
+    # Filter out empty/whitespace-only separators
+    seps = [s for s in separators if s and s.strip()]
     if not seps:
         return [text]
 
@@ -114,16 +110,16 @@ def split_on_separators(text, separators):
     for s in seps:
         escaped = re.escape(s)
         if s.replace(" ", "").isalnum():  # treat spaced separators like symbols
-            # Alphanumeric needs word boundaries (like "x", "and")
-            patterns.append(rf"\b{escaped}\b")
+            patterns.append(rf"\b{escaped}\b")  # word boundaries for "x", "and"
         else:
-            # Symbols like "/", " / " need no boundaries
-            patterns.append(escaped)
+            patterns.append(escaped)  # no boundaries for "/", " / "
 
     pattern = "|".join(patterns)
 
+    # Early exit if no separators found in text
     if not re.search(pattern, text, flags=re.IGNORECASE):
         return [text]
+
     parts = re.split(pattern, text, flags=re.IGNORECASE)
     return [p.strip() for p in parts if p.strip()]
 
