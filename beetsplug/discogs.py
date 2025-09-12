@@ -414,6 +414,10 @@ class DiscogsPlugin(MetadataSourcePlugin):
         if self.config["anv"]["album_artist"]:
             album_artist = album_artist_anv
 
+        # Compile a list of track-artists to populate the multi-valued
+        # albumartists field since the release artist might just be Various:
+        track_artists = [a["name"] for t in tracks for a in t["artists"]]
+
         # Extract information for the optional AlbumInfo fields, if possible.
         va = result.data["artists"][0].get("name", "").lower() == "various"
         year = result.data.get("year")
@@ -477,6 +481,7 @@ class DiscogsPlugin(MetadataSourcePlugin):
             artist=album_artist,
             artist_credit=artist_credit,
             artist_id=album_artist_id,
+            artists=track_artists,
             tracks=tracks,
             albumtype=albumtype,
             va=va,
