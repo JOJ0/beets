@@ -341,6 +341,10 @@ class DiscogsPlugin(MetadataSourcePlugin):
         # each make an API call just to get the same data back.
         tracks = self.get_tracks(result.data["tracklist"])
 
+        # Compile a list of track-artists to populate the multi-valued
+        # albumartists field since the release artist might just be Various:
+        track_artists = [a["name"] for t in tracks for a in t["artists"]]
+
         # Extract information for the optional AlbumInfo fields, if possible.
         va = result.data["artists"][0].get("name", "").lower() == "various"
         year = result.data.get("year")
@@ -407,6 +411,7 @@ class DiscogsPlugin(MetadataSourcePlugin):
             album_id=album_id,
             artist=artist,
             artist_id=artist_id,
+            artists=track_artists,
             tracks=tracks,
             albumtype=albumtype,
             va=va,
