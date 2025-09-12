@@ -690,7 +690,7 @@ class LastGenrePlugin(plugins.BeetsPlugin):
             if not self.whitelist or self._is_valid(obj.genre.lower()):
                 return obj.genre, "original fallback (as-is)"
 
-        self._log.debug("Pretend: No genre found. obj.genre is: {}", obj.genre)
+        self._log.debug("No genre found. obj.genre is: {}", obj.genre)
         # Return fallback string.
         if fallback := self.config["fallback"].get():
             return fallback, "fallback"
