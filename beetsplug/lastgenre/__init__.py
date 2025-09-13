@@ -300,13 +300,15 @@ class LastGenrePlugin(plugins.BeetsPlugin):
                 break
         return depth
 
-    def _sort_by_depth(self, tags):
+    def _sort_by_depth(self, tags, reverse=True):
         """Given a list of tags, sort the tags by their depths in the
         genre tree.
+
+        The default is reverse order (most specific first).
         """
         depth_tag_pairs = [(self._get_depth(t), t) for t in tags]
         depth_tag_pairs = [e for e in depth_tag_pairs if e[0] is not None]
-        depth_tag_pairs.sort(reverse=True)
+        depth_tag_pairs.sort(reverse=reverse)
         return [p[1] for p in depth_tag_pairs]
 
     def _resolve_genres(self, tags: list[str], artist: str = None) -> list[str]:
