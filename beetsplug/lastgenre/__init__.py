@@ -114,6 +114,11 @@ class LastGenrePlugin(plugins.BeetsPlugin):
         self.whitelist = self._load_whitelist()
         self.c14n_branches, self.canonicalize = self._load_c14n_tree()
 
+    def _debug_extended(self, msg, *args, **kwargs):
+        """Log debug message only when extended_debug is enabled."""
+        if self.config["extended_debug"]:
+            self._log.debug(msg, *args, **kwargs)
+
     def _load_whitelist(self) -> set[str]:
         """Load the whitelist from a text file.
 
@@ -286,8 +291,7 @@ class LastGenrePlugin(plugins.BeetsPlugin):
             self._genre_cache[key] = self.fetch_genre(method(*args))
 
         genre = self._genre_cache[key]
-        if self.config["extended_debug"]:
-            self._log.debug("last.fm (unfiltered) {} tags: {}", entity, genre)
+        self._debug_extended("last.fm (unfiltered) {} tags: {}", entity, genre)
         return genre
 
     def fetch_album_genre(self, obj):
