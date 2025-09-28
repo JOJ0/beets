@@ -889,12 +889,15 @@ class LastGenrePlugin(plugins.BeetsPlugin):
                             if (
                                 not item_genre
                                 or item_genre == self.config["fallback"].get()
-                                and album.genre
-                                and album.genre != self.config["fallback"].get()
                             ):
-                                item_genre = album.genre
-                                label = "inherit from album"
-
+                                # FIXME try to use getattr()
+                                fallback = self.config["fallback"].get()
+                                if album_genre and album_genre != fallback:
+                                    item_genre = album_genre
+                                    label = "inherit from album [new]"
+                                elif album.genre and album.genre != fallback:
+                                    item_genre = album.genre
+                                    label = "inherit from album"
                             if item_genre:
                                 self._apply_item_genre(item, label, item_genre)
                                 if write:
