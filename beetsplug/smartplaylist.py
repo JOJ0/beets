@@ -93,6 +93,13 @@ class SmartPlaylistPlugin(BeetsPlugin):
             help="in pretend mode, log the playlist item URIs/paths.",
         )
         spl_update.parser.add_option(
+            "-c",
+            "--counts",
+            action="store_true",
+            dest="counts_only",
+            help="show match counts only",
+        )
+        spl_update.parser.add_option(
             "-d",
             "--playlist-dir",
             dest="playlist_dir",
@@ -163,7 +170,7 @@ class SmartPlaylistPlugin(BeetsPlugin):
             self._matched_playlists = self._unmatched_playlists
 
         self.__apply_opts_to_config(opts)
-        self.update_playlists(lib, opts.pretend)
+        self.update_playlists(lib, opts.pretend, opts.counts_only)
 
     def __apply_opts_to_config(self, opts: Any) -> None:
         for k, v in opts.__dict__.items():
@@ -252,7 +259,9 @@ class SmartPlaylistPlugin(BeetsPlugin):
 
         self._unmatched_playlists -= self._matched_playlists
 
-    def update_playlists(self, lib: Library, pretend: bool = False) -> None:
+    def update_playlists(
+        self, lib: Library, pretend: bool = False, counts_only=False
+    ) -> None:
         if pretend:
             self._log.info(
                 "Showing query results for {} smart playlists...",
@@ -275,10 +284,11 @@ class SmartPlaylistPlugin(BeetsPlugin):
         m3us: dict[str, list[PlaylistItem]] = {}
 
         for playlist in self._matched_playlists:
+            pretend_count = 0
             name, (query, q_sort), (album_query, a_q_sort) = playlist
-            if pretend:
+            if pretend and not counts_only:
                 self._log.info("Results for playlist {}:", name)
-            else:
+            elif not counts_only:
                 self._log.info("Creating playlist {}", name)
             items = []
 
@@ -333,7 +343,10 @@ class SmartPlaylistPlugin(BeetsPlugin):
                     if pretend and self.config["pretend_paths"]:
                         print(displayable_path(item_uri))
                     elif pretend:
-                        print(item)
+                        if not counts_only:
+                            print(item)
+                pretend_count += 1
+            self._log.info(f"{name}: {pretend_count} items matched.")
 
         if not pretend:
             # Write all of the accumulated track lists to files.
@@ -371,7 +384,7 @@ class SmartPlaylistPlugin(BeetsPlugin):
             # Send an event when playlists were updated.
             send_event("smartplaylist_update")  # type: ignore
 
-        if pretend:
+        if pretend and not counts_only:
             self._log.info(
                 "Displayed results for {} playlists",
                 len(self._matched_playlists),
