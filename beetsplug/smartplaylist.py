@@ -152,20 +152,34 @@ class SmartPlaylistPlugin(BeetsPlugin):
                 if not a.endswith(".m3u"):
                     args_set.add(f"{a}.m3u")
 
-            playlists = {
-                (name, q, a_q)
-                for name, q, a_q in self._unmatched_playlists
-                if name in args_set
-            }
-            if not playlists:
+            # Find playlists that match ALL of the provided arguments
+            matched_playlists = set()
+            for name, q, a_q in self._unmatched_playlists:
+                # Check if this playlist name contains ALL arguments (substring match)
+                matches_all = True
+                for arg in args:
+                    # Check exact match or substring match (case-insensitive)
+                    # Also try with .m3u extension for exact matches
+                    if not (
+                        name == arg
+                        or name == f"{arg}.m3u"
+                        or arg.lower() in name.lower()
+                    ):
+                        matches_all = False
+                        break
+
+                if matches_all:
+                    matched_playlists.add((name, q, a_q))
+
+            if not matched_playlists:
                 unmatched = [name for name, _, _ in self._unmatched_playlists]
                 unmatched.sort()
                 raise ui.UserError(
-                    f"No playlist matching any of {' '.join(unmatched)} found"
+                    f"No playlist matching all of {' '.join(args)} found"
                 )
 
-            self._matched_playlists = playlists
-            self._unmatched_playlists -= playlists
+            self._matched_playlists = matched_playlists
+            self._unmatched_playlists -= matched_playlists
         else:
             self._matched_playlists = self._unmatched_playlists
 
