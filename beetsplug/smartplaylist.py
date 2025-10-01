@@ -309,7 +309,7 @@ class SmartPlaylistPlugin(BeetsPlugin):
 
         if not pretend:
             # Write all of the accumulated track lists to files.
-            for m3u in m3us:
+            for m3u in m3us:  # pylint: disable=C0206
                 m3u_path = normpath(
                     os.path.join(playlist_dir, bytestring_path(m3u))
                 )
