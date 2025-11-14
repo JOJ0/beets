@@ -35,6 +35,7 @@ class AutoBPMPlugin(BeetsPlugin):
             {
                 "auto": True,
                 "overwrite": False,
+                "brief": False,
                 "beat_track_kwargs": {},
             }
         )
@@ -54,6 +55,14 @@ class AutoBPMPlugin(BeetsPlugin):
             default=False,
             help="Overwrite existing bpm values",
         )
+        cmd.parser.add_option(
+            "-b",
+            "--brief",
+            dest="brief",
+            action="store_true",
+            default=False,
+            help="Suppress already existing values output",
+        )
         cmd.func = self.command
         return [cmd]
 
@@ -63,23 +72,29 @@ class AutoBPMPlugin(BeetsPlugin):
             if hasattr(opts, "overwrite")
             else self.config["overwrite"].get(bool)
         )
+        brief = (
+            self.config["brief"].get(bool) or opts.brief
+        )
         self.calculate_bpm(
-            list(lib.items(args)), write=should_write(), overwrite=overwrite
+            list(lib.items(args)), write=should_write(), overwrite=overwrite, brief=opts.brief
         )
 
     def imported(self, _, task: ImportTask) -> None:
         self.calculate_bpm(task.imported_items())
 
     def calculate_bpm(
-        self, items: list[Item], write: bool = False, overwrite: bool = False
+        self, items: list[Item], write: bool = False, overwrite: bool = False, brief: bool = False
     ) -> None:
         for item in items:
             path = item.filepath
             if bpm := item.bpm:
-                self._log.info("BPM for {} already exists: {}", path, bpm)
+                msg_exists = "BPM for {} already exists: {}"
+                if brief:
+                    self._log.debug(msg_exists, path, bpm)
+                else:
+                    self._log.info(msg_exists, path, bpm)
                 if not overwrite:
                     continue
-
             try:
                 y, sr = librosa.load(item.filepath, res_type="kaiser_fast")
             except Exception as exc:
