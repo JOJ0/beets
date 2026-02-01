@@ -1,0 +1,40 @@
+# This file is part of beets.
+# Copyright 2016, Adrian Sampson.
+#
+# Permission is hereby granted, free of charge, to any person obtaining
+# a copy of this software and associated documentation files (the
+# "Software"), to deal in the Software without restriction, including
+# without limitation the rights to use, copy, modify, merge, publish,
+# distribute, sublicense, and/or sell copies of the Software, and to
+# permit persons to whom the Software is furnished to do so, subject to
+# the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+
+"""Data models for the lastgenre plugin."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Pattern
+
+
+@dataclass(frozen=True)
+class GenreData:
+    """Container for loaded genre data."""
+
+    whitelist: set[str]
+    c14n_branches: list[list[str]]
+    canonicalize: bool
+    aliases: list[dict[str, str]]
+    blacklist: dict[str, list[Pattern[str]]]
+
+
+@dataclass(frozen=True)
+class ProcessingResult:
+    """Result of genre processing pipeline."""
+
+    genre: str | None
+    label: str
+    source_used: str | None = None
