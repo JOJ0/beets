@@ -55,6 +55,8 @@ Other changes
   Since genres are now stored as a list in the ``genres`` field and written to
   files as individual genre tags, this option has no effect and has been
   removed.
+- :doc:`/plugins/lastgenre`: Refactored plugin into modular structure with
+  separate last.fm client, file loaders, and utils modules.
 
 2.6.1 (February 02, 2026)
 -------------------------
