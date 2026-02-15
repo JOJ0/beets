@@ -198,8 +198,8 @@ class LastGenrePlugin(plugins.BeetsPlugin):
     def _filter_valid(self, genres: Iterable[str]) -> list[str]:
         """Filter genres based on whitelist.
 
-        Depending on the whitelist property, valid means a genre is in the
-        whitelist or any genre is allowed.
+        Returns all genres if no whitelist is configured, otherwise returns
+        only genres that are in the whitelist.
         """
         if not self.whitelist:
             return list(genres)
