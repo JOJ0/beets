@@ -530,6 +530,28 @@ class LastGenrePlugin(plugins.BeetsPlugin):
                     "album", keep_genres, new_genres, artist=obj.albumartist
                 ):
                     return result
+            if not new_genres and obj.albumartist != config["va_name"].as_str():
+                self._log.extra_debug(
+                    'No album genre found for "{}", '
+                    "trying multi-valued albumartists field...",
+                    obj.albumartist,
+                )
+                multi_album_genres = []
+                for albumartist in obj.albumartists:
+                    self._log.extra_debug(
+                        'Fetching album genre for "{}"', albumartist
+                    )
+                    multi_album_genres += self.client.fetch(
+                        "album", obj, albumartist, obj.album
+                    )
+                if multi_album_genres:
+                    if result := _try_resolve_stage(
+                        "multi-valued albumartist album",
+                        keep_genres,
+                        multi_album_genres,
+                        artist=None,
+                    ):
+                        return result
 
         if "artist" in self.sources:
             new_genres = []
