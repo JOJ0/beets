@@ -932,6 +932,32 @@ class TestIgnorelist:
         assert "multi-valued album artist" in label
         assert "Metal" in genres
 
+    def test_multivalued_albumartist_album_fallback(self, monkeypatch, config):
+        """When primary albumartist album fetch fails, try individual albumartists."""
+        config["lastgenre"]["whitelist"] = False
+
+        plugin = lastgenre.LastGenrePlugin()
+        plugin.setup()
+
+        def fake_fetch(_, kind, obj, *args):
+            if kind == "album" and args and args[0] == "Artist A":
+                return ["rock", "indie"]
+            return []
+
+        monkeypatch.setattr(
+            "beetsplug.lastgenre.client.LastFmClient.fetch", fake_fetch
+        )
+
+        obj = Album()
+        obj.albumartist = "Artist A & Artist B"
+        obj.album = "Collab Album"
+        obj.albumartists = ["Artist A", "Artist B"]
+
+        genres, label = plugin._get_genre(obj)
+
+        assert "multi-valued albumartist album" in label
+        assert "Rock" in genres
+
 
 # Aliases: normalize_genre() unit tests
 
