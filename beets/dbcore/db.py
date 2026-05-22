@@ -143,7 +143,14 @@ class FormattedMapping(Mapping[str, str]):
         return super().get(key, default)
 
     def _get_formatted(self, model: Model, key: str) -> str:
-        value = model._type(key).format(model.get(key))
+        # For computed (getter) fields, use DEFAULT type to avoid applying
+        # a related model's type (e.g. Item's ScaledInt for 'bitrate') to a
+        # value returned by an inline/plugin getter that may not match it.
+        if key in model._getters():
+            typ = types.DEFAULT
+        else:
+            typ = model._type(key)
+        value = typ.format(model.get(key))
         if isinstance(value, bytes):
             value = value.decode("utf-8", "ignore")
 
