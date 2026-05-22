@@ -112,7 +112,7 @@ blue-eyed soul
 bluegrass
 blues
 blues ballad
-blues-rock
+blues rock
 boogie
 boogie woogie
 boogie-woogie
@@ -1074,6 +1074,7 @@ nortec
 norteño
 northern soul
 nota
+nu disco
 nu jazz
 nu metal
 nu soul
