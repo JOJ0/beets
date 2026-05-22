@@ -26,6 +26,12 @@ avant-garde:
 nu \g<1>:
     - nu[ -]*(disco|jazz|metal|soul)
 
+# Old School spellings: old-skool-jungle/-hardcore, oldschool hip-hop
+old school hip hop:
+    - old[ -]*(?:school|skool)[ -]+hip[ -]*hop
+old school \g<1>:
+    - old[ -]*(?:school|skool)[ -]+(\w+)
+
 # Terminology / Synonyms
 electronic:
     - electronic music
@@ -42,6 +48,16 @@ shoegaze:
     - shoegazing
 nu skool breaks:
     - breaks  # https://www.last.fm/tag/breaks/wiki
+soundtrack:
+    - disney
+footwork:
+    - (chicago )?footwork( music)?
+    - juke/footwork
+juke:
+    - (chicago )?juke( music| house)?
+    - juke/footwork
+minimal:
+    - minimal techno
 
 # Spacing: hip hop, trip hop, etc.
 \g<1> hop:
@@ -68,3 +84,7 @@ progressive rock:
 # avoids matching 'trad jazz' or 'traditional country'
 traditional folk:
     - trad(/|ition(/|al)?)?-?
+# psy-trance, psych-pop, psychedelic-rock, but not psychedelic (standalone)
+psychedelic \g<1>:
+    - psy(?:ch(?:edelic)?)?[ -]+(\w+)
+

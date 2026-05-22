@@ -234,6 +234,7 @@ chinese music
 chinese pop
 chinese rock
 chip music
+chiptune
 cho-kantrum
 chongak
 chopera
@@ -415,6 +416,7 @@ drone metal
 drone music
 dronology
 drum and bass
+drumfunk
 dub
 dub house
 dubanguthu
@@ -497,6 +499,7 @@ folk pop
 folk punk
 folk rock
 folktronica
+footwork
 forró
 franco-country
 freak-folk
@@ -688,12 +691,13 @@ indo jazz
 indo rock
 indonesian pop
 indoyíftika
+industrial
 industrial death metal
 industrial hip hop
 industrial metal
-industrial music
 industrial musical
 industrial rock
+industrial techno
 instrumental rock
 intelligent dance music
 international latin
@@ -755,6 +759,7 @@ jtek
 jug band
 jujitsu
 juju
+juke
 juke joint blues
 jump blues
 jumpstyle
@@ -968,7 +973,7 @@ min'yo
 mineras
 mini compas
 mini-jazz
-minimal techno
+minimal
 minimalist music
 minimalist trance
 minneapolis sound
@@ -1063,7 +1068,7 @@ nintendocore
 nisiótika
 no wave
 noh
-noise music
+noise
 noise pop
 noise rock
 nongak
@@ -1085,6 +1090,8 @@ néo kýma
 obscuro
 oi!
 old school hip hop
+old school jungle
+old school hardcore
 old-time
 oldies
 olonkho
