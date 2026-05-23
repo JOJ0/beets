@@ -639,10 +639,19 @@ class LastGenrePlugin(plugins.BeetsPlugin):
         # Nothing found, leave original if configured and valid.
         if genres and self.config["keep_existing"].get():
             artist = self._artist_for_filter(obj)
-            if valid_genres := self._filter_valid(genres, artist=artist):
-                return valid_genres, "original fallback"
-            # If the original genre doesn't match a whitelisted genre, check
-            # if we can canonicalize it to find a matching, whitelisted genre!
+
+            # We don't run through try_resolve_stage yet because we want to
+            # make sure the "count" setting doesnt kick out anything.  but we
+            # apply aliases before whitelist check.
+            normalized = [
+                normalize_genre(self._log, self.alias_patterns, g)
+                for g in genres
+            ]
+            if valid := self._filter_valid(normalized, artist=artist):
+                return self._format_genres(valid), "original fallback"
+
+            # If no existing genre survived the whitelist even after aliasing,
+            # try canonicalization to find a valid whitelisted parent genre.
             if result := _try_resolve_stage(
                 "original fallback", keep_genres, [], artist=artist
             ):
