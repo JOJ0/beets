@@ -58,6 +58,8 @@ juke:
     - juke/footwork
 minimal:
     - minimal techno
+funk:
+    - Funk / Soul
 
 # Spacing: hip hop, trip hop, etc.
 \g<1> hop:
@@ -81,10 +83,16 @@ gothic rock:
 progressive rock:
     - prog([ -]*rock)?
     - progressive[ -]*rock
+punk rock:
+    - punk
 # avoids matching 'trad jazz' or 'traditional country'
 traditional folk:
     - trad(/|ition(/|al)?)?-?
 # psy-trance, psych-pop, psychedelic-rock, but not psychedelic (standalone)
 psychedelic \g<1>:
     - psy(?:ch(?:edelic)?)?[ -]+(\w+)
+ska jazz:
+    - ska[ -]*jazz
+dixieland:
+    - dixieland[ -]*jazz
 

@@ -1,5 +1,5 @@
 2 tone
-2-step garage
+2-step
 4-beat
 4x4 garage
 8-bit
@@ -12,6 +12,7 @@ acid rock
 acoustic music
 acousticana
 adult contemporary music
+african
 african popular music
 african rumba
 afrobeat
@@ -337,7 +338,6 @@ dabka
 dadra
 daina
 dalauna
-dance
 dance music
 dance-pop
 dance-punk
@@ -396,7 +396,6 @@ disney pop
 diva house
 divine rock
 dixieland
-dixieland jazz
 djambadon
 djent
 dodompa
@@ -1322,6 +1321,7 @@ shabad
 shalako
 shan'ge
 shango
+shangaan electro
 shape note
 shibuya-kei
 shidaiqu
@@ -1336,8 +1336,10 @@ sica
 siguiriyas
 silat
 sinawi
+singer-songwriter
 situational
 ska
+ska jazz
 ska punk
 skacore
 skald
