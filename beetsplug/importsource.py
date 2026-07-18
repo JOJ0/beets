@@ -44,37 +44,32 @@ class ImportSourcePlugin(BeetsPlugin):
     def import_stage(self, _, task):
         """Event handler for albums import finished."""
         for item in task.imported_items():
-            new_source = item.path
+            # source_path is immutable: once set from an external import it
+            # must never be overwritten.  This covers both plain reimports
+            # (beet import --library) and merge operations where the freshened
+            # duplicate already carries the original provenance path.
             if "source_path" in item and item["source_path"]:
-                # During reimports (import --library) or merges, preserve the
-                # original source_path. Additionally, if this import brings in
-                # a genuinely new source (i.e. the file lives outside the
-                # library directory), append it to source_history so the full
-                # autobiographical chain is not lost.
-                lib_dir = item._db.directory if item._db else None
-                if lib_dir and lib_dir not in util.ancestry(new_source):
-                    existing_history = item.get("source_history") or ""
-                    sources_seen = (
-                        set(existing_history.split("|"))
-                        if existing_history
-                        else set()
-                    )
-                    sources_seen.discard("")
-                    if new_source not in sources_seen:
-                        sources_seen.add(new_source)
-                        item["source_history"] = "|".join(sorted(sources_seen))
-                        item.try_sync(write=False, move=False)
-                        self._log.info(
-                            "Appended new source to source_history for item {}: {}",
-                            item.id,
-                            new_source,
-                        )
-                else:
-                    self._log.info(
-                        "Preserving source_path of reimported item {}", item.id
-                    )
+                self._log.debug(
+                    "Preserving source_path of reimported item {}", item.id
+                )
                 continue
-            item["source_path"] = new_source
+
+            # Only record source_path for genuinely new imports.  Items that
+            # are replacing an existing library entry (freshened merge
+            # duplicates, reimports) were already in the library and do not
+            # represent new provenance.  Using replaced_items rather than a
+            # filesystem path check correctly handles in-place imports
+            # (copy:no move:no) where the file happens to live inside the
+            # library directory on the very first import.
+            replaced = getattr(task, "replaced_items", {})
+            if replaced.get(item):
+                self._log.debug(
+                    "Skipping source_path for already-in-library item {}",
+                    item.id,
+                )
+                continue
+
+            item["source_path"] = item.path
             item.try_sync(write=False, move=False)
 
     def suggest_removal(self, item):
