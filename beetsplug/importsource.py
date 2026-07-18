@@ -44,13 +44,31 @@ class ImportSourcePlugin(BeetsPlugin):
     def import_stage(self, _, task):
         """Event handler for albums import finished."""
         for item in task.imported_items():
-            # During reimports (import --library), we prevent overwriting the
-            # source_path attribute with the path from the music library
-            if "source_path" in item:
-                self._log.info(
+            # source_path is immutable: once set from an external import it
+            # must never be overwritten.  This covers both plain reimports
+            # (beet import --library) and merge operations where the freshened
+            # duplicate already carries the original provenance path.
+            if "source_path" in item and item["source_path"]:
+                self._log.debug(
                     "Preserving source_path of reimported item {}", item.id
                 )
                 continue
+
+            # Only record source_path for genuinely new imports.  Items that
+            # are replacing an existing library entry (freshened merge
+            # duplicates, reimports) were already in the library and do not
+            # represent new provenance.  Using replaced_items rather than a
+            # filesystem path check correctly handles in-place imports
+            # (copy:no move:no) where the file happens to live inside the
+            # library directory on the very first import.
+            replaced = getattr(task, "replaced_items", {})
+            if replaced.get(item):
+                self._log.debug(
+                    "Skipping source_path for already-in-library item {}",
+                    item.id,
+                )
+                continue
+
             item["source_path"] = item.path
             item.try_sync(write=False, move=False)
 
