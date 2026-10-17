@@ -577,6 +577,38 @@ def mock_lastfm(monkeypatch):
         _p(
             {
                 "force": True,
+                "keep_existing": False,
+                "source": "track",
+                "whitelist": True,
+                "failsafe": True,
+                "fallback": "fallback genre",
+                "canonical": False,
+                "prefer_specific": False,
+            },
+            ["not whitelisted"],
+            {("track",): [], ("album",): [], ("artist",): []},
+            (["not whitelisted"], "original failsafe"),
+            id="failsafe-keeps-unusable-original-over-fallback",
+        ),
+        _p(
+            {
+                "force": True,
+                "keep_existing": False,
+                "source": "track",
+                "whitelist": True,
+                "failsafe": True,
+                "fallback": "fallback genre",
+                "canonical": False,
+                "prefer_specific": False,
+            },
+            [],
+            {("track",): [], ("album",): [], ("artist",): []},
+            (["fallback genre"], "fallback"),
+            id="failsafe-without-original-uses-fallback",
+        ),
+        _p(
+            {
+                "force": True,
                 "keep_existing": True,
                 "source": "track",
                 "whitelist": True,
