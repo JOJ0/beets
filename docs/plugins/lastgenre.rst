@@ -191,8 +191,9 @@ your ``whitelist``, ``canonical`` and ``aliases`` settings:
   also enabled, the plugin tries to canonicalize the existing tags, looking for
   a whitelisted parent genre. This is the only path in this stage where
   ``count`` is honored.
-- If none of the above produces a genre, the configured ``fallback`` is used
-  instead.
+- If none of the above produces a genre and ``failsafe`` is enabled, the
+  original genres are kept unfiltered. Otherwise the configured ``fallback`` is
+  used instead.
 
 Genre Ignorelist
 ----------------
@@ -306,6 +307,7 @@ file. Default configuration:
         canonical: no
         cleanup_existing: no
         count: 1
+        failsafe: no
         fallback: null
         force: no
         keep_existing: no
@@ -329,6 +331,10 @@ The available options are:
   can be determined, the ``fallback`` is used instead. Default: ``no``
   (disabled).
 - **count**: Number of genres to fetch. Default: 1
+- **failsafe**: If no genre could be determined (e.g. existing genres were
+  rejected by the whitelist), keep the original genres unfiltered instead of
+  clearing them or using ``fallback``. Does nothing if there were no original
+  genres. Default: ``no``.
 - **fallback**: A string to use as a fallback genre when no genre is found
   ``or`` the original genre is not desired to be kept (``keep_existing: no``).
   You can use the empty string ``''`` to reset the genre. Default: None.
