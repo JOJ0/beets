@@ -119,6 +119,7 @@ class LastGenrePlugin(plugins.BeetsPlugin):
                 "min_weight": 10,
                 "count": 1,
                 "fallback": None,
+                "failsafe": False,
                 "canonical": False,
                 "cleanup_existing": False,
                 "source": "album",
@@ -465,6 +466,14 @@ class LastGenrePlugin(plugins.BeetsPlugin):
             return [fallback], "fallback"
         return [], "fallback unconfigured"
 
+    def _last_resort(self, existing_genres: list[str]) -> GenresWithLabel:
+        """Return the unfiltered original genres if ``failsafe`` is enabled
+        and any exist, otherwise the configured fallback.
+        """
+        if self.config["failsafe"] and existing_genres:
+            return existing_genres, "original failsafe"
+        return self.fallback
+
     def _try_resolve_stage(
         self,
         stage_label: str,
@@ -654,6 +663,7 @@ class LastGenrePlugin(plugins.BeetsPlugin):
             - album
             - artist, albumartist or "most popular track genre" (for VA-albums)
             - original fallback
+            - original failsafe (if enabled)
             - configured fallback
             - empty list
 
@@ -672,7 +682,7 @@ class LastGenrePlugin(plugins.BeetsPlugin):
                 obj, existing_genres
             ):
                 return resolved
-            return self.fallback
+            return self._last_resort(existing_genres)
 
         keep_genres = (
             [g.lower() for g in existing_genres]
@@ -715,7 +725,7 @@ class LastGenrePlugin(plugins.BeetsPlugin):
         ):
             return resolved
 
-        return self.fallback
+        return self._last_resort(existing_genres)
 
     # Beets plugin hooks and CLI.
 
