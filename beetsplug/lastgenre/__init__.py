@@ -489,6 +489,7 @@ class LastGenrePlugin(plugins.BeetsPlugin):
         resolved_genres = self._combine_resolve_and_log(
             keep_genres, new_genres, artist=artist
         )
+        print("resolved genres are these:", resolved_genres)
         if resolved_genres:
             suffix = "whitelist" if self.whitelist else "any"
             label = f"{stage_label}, {suffix}"
