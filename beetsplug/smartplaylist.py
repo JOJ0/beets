@@ -412,6 +412,12 @@ class SmartPlaylistPlugin(plugins.BeetsPlugin):
 
         for playlist in self._matched_playlists:
             name, item_q, album_q = playlist
+            self._log.debug(
+                "Processing playlist {} (items: {}, albums: {})",
+                name,
+                item_q,
+                album_q,
+            )
             items = self.get_playlist_items(lib, item_q, album_q)
 
             # As we allow tags in the m3u names, we'll need to iterate through
