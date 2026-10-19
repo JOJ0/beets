@@ -466,6 +466,12 @@ class NumericQuery(FieldQuery[str]):
         if isinstance(value, str):
             value = self._convert(value)
 
+        if value is None and (
+            self.rangemin is not None or self.rangemax is not None
+        ):
+            # Unset or empty field can't satisfy a range.
+            return False
+
         if self.point is not None:
             return value == self.point
         if self.rangemin is not None and value < self.rangemin:
