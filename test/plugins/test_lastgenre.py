@@ -853,6 +853,7 @@ def test_get_genre(
     mock_lastfm, config, config_values, item_genre, mock_genres, expected_result
 ):
     """Test _get_genre with various configurations."""
+    config["lastgenre"].set(config_values)
     # When whitelist enabled, we can assume only whitelisted genres get
     # returned, the plugin's _resolve_genre method ensures it.
     mock_lastfm(mock_genres)
