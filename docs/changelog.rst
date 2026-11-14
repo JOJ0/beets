@@ -49,6 +49,17 @@ New features
 - :doc:`plugins/edit`: ``edit Candidates`` now edits the candidate on screen
   instead of asking for a candidate number again. It still asks when chosen from
   the candidate list.
+- Long-running commands now show a progress bar with an estimate of the
+  remaining time when run in an interactive terminal: ``modify``, ``move``,
+  ``remove``, ``update`` and ``write``, as well as the commands provided by
+  :doc:`plugins/acousticbrainz`, :doc:`plugins/autobpm`, :doc:`plugins/bpsync`,
+  :doc:`plugins/chroma`, :doc:`plugins/embedart`, :doc:`plugins/fetchart`,
+  :doc:`plugins/ftintitle`, :doc:`plugins/ipfs`, :doc:`plugins/keyfinder`,
+  :doc:`plugins/lastgenre`, :doc:`plugins/lyrics`, :doc:`plugins/mbsync`,
+  :doc:`plugins/metasync`, :doc:`plugins/missing`, :doc:`plugins/parentwork`,
+  :doc:`plugins/scrub`, :doc:`plugins/spotify`, :doc:`plugins/thumbnails`,
+  :doc:`plugins/titlecase` and :doc:`plugins/zero`. Output and log messages are
+  printed above the bar. :bug:`5711`
 
 Bug fixes
 ~~~~~~~~~
@@ -172,6 +183,8 @@ For plugin developers
 - Import prompt choice callbacks can now read the candidate on screen from
   ``task.selected_match``, including one picked by number from the candidate
   list. It is ``None`` while the candidate list itself is shown.
+- New ``beets.ui.track`` function wraps a sequence of items or albums to show a
+  progress bar while a command iterates over it. See :ref:`progress-bars`.
 
 Other changes
 ~~~~~~~~~~~~~
